@@ -2,13 +2,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AnyItem, User } from '../types';
 import Card from '../components/Card';
-import { Trophy, Heart, FolderOpen, Briefcase, DollarSign, Wallet, CheckCircle2, Plus, MapPin, X, ArrowRight, UserPlus, FileText, BadgeCheck, Image as ImageIcon, Trash2, PlusCircle, AlertTriangle, MessageCircle, AlertCircle, Lock, Smile, Star, CreditCard, Zap } from 'lucide-react';
-import { db } from '../services/mockDb';
+import { Trophy, Plus, BadgeCheck, Zap } from 'lucide-react';
+import * as database from '../services/database';
 
 interface MyPageProps {
   likedIds: number[];
   appliedIds: number[];
-  unlockedIds: number[]; 
+  unlockedIds: number[];
   onItemClick: (item: AnyItem) => void;
   toggleLike: (id: number) => void;
   currentUser: User | null;
@@ -16,20 +16,39 @@ interface MyPageProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-const MyPage: React.FC<MyPageProps> = ({ 
-    likedIds, appliedIds, unlockedIds, onItemClick, toggleLike, 
-    currentUser, onUpdateUser, showToast 
+const MyPage: React.FC<MyPageProps> = ({
+    likedIds, appliedIds, unlockedIds, onItemClick, toggleLike,
+    currentUser, onUpdateUser, showToast
 }) => {
   const [activeTab, setActiveTab] = useState<'liked' | 'applied' | 'partner'>('liked');
   const [allItems, setAllItems] = useState<AnyItem[]>([]);
   const [bannerImg, setBannerImg] = useState('');
   const [commissionRate, setCommissionRate] = useState(15);
+  const [myCreatedItems, setMyCreatedItems] = useState<AnyItem[]>([]);
 
   useEffect(() => {
-    setAllItems(db.getItems());
-    setBannerImg(db.getMyPageBanner());
-    setCommissionRate(db.getCommissionRate());
+    const loadData = async () => {
+      const [items, banner, rate] = await Promise.all([
+        database.getItems(),
+        database.getMyPageBanner(),
+        database.getCommissionRate()
+      ]);
+      setAllItems(items);
+      setBannerImg(banner);
+      setCommissionRate(rate);
+    };
+    loadData();
   }, []);
+
+  useEffect(() => {
+    const loadMyItems = async () => {
+      if (currentUser?.name) {
+        const items = await database.getMyCreatedItems(currentUser.name);
+        setMyCreatedItems(items);
+      }
+    };
+    loadMyItems();
+  }, [currentUser]);
 
   const likedItems = allItems.filter(item => likedIds.includes(item.id));
   const myLibraryItems = allItems.filter(item => appliedIds.includes(item.id) || unlockedIds.includes(item.id));
@@ -42,27 +61,25 @@ const MyPage: React.FC<MyPageProps> = ({
   const [reviewingItem, setReviewingItem] = useState<AnyItem | null>(null);
 
   // Mocked Review Data (In real app, fetch from db)
-  const [reviewedIds, setReviewedIds] = useState<number[]>([]); 
+  const [reviewedIds, setReviewedIds] = useState<number[]>([]);
 
   // --- Gamification Logic ---
   const reviewXP = reviewedIds.length * 30;
   const totalXP = (likedIds.length * 10) + ((appliedIds.length + unlockedIds.length) * 50) + reviewXP;
-  
+
   let level = 1;
   let rankName = "임린이";
   let nextRankName = "임대장";
   let minXP = 0;
   let maxXP = 300;
   let icon = "🐣";
-  if (totalXP >= 300 && totalXP < 1000) { level = 2; rankName = "임대장"; nextRankName = "부동산 고수"; minXP = 300; maxXP = 1000; icon = "👣"; } 
+  if (totalXP >= 300 && totalXP < 1000) { level = 2; rankName = "임대장"; nextRankName = "부동산 고수"; minXP = 300; maxXP = 1000; icon = "👣"; }
   else if (totalXP >= 1000) { level = 3; rankName = "부동산 고수"; nextRankName = "마스터"; minXP = 1000; maxXP = 3000; icon = "👑"; }
   const progressPercent = Math.min(100, Math.max(0, ((totalXP - minXP) / (maxXP - minXP)) * 100));
 
   const hasPartnerRole = currentUser && currentUser.roles.some(r => r.includes('manager') || r === 'super_admin');
-  
+
   // --- Settlement Logic Updated ---
-  const myCreatedItems = currentUser ? db.getMyCreatedItems(currentUser.email) : [];
-  
   const calculateSettlement = () => {
       let totalSales = 0;
       let totalFees = 0;
@@ -73,8 +90,8 @@ const MyPage: React.FC<MyPageProps> = ({
 
       myCreatedItems.forEach(item => {
           const rawPrice = item.price ? parseInt(item.price.replace(/[^0-9]/g, '')) : 0;
-          const salesCount = item.categoryType === 'networking' ? (item.currentParticipants || 0) : 
-                             item.categoryType === 'crew' ? (item.purchaseCount || 0) : 0;
+          const salesCount = item.categoryType === 'networking' ? ((item as any).currentParticipants || 0) :
+                             item.categoryType === 'crew' ? ((item as any).purchaseCount || 0) : 0;
           const revenue = rawPrice * salesCount;
 
           totalSales += revenue;
@@ -127,24 +144,34 @@ const MyPage: React.FC<MyPageProps> = ({
           }
       };
 
-      const handleSubmit = () => {
+      const handleSubmit = async () => {
           if(!title || !priceRaw || !selectedDate) { showToast("필수 정보를 입력해주세요.", "error"); return; }
           const newItem: any = {
-              id: Date.now(),
               categoryType: category,
-              title, desc, img: imgPreview || "https://images.unsplash.com/photo-1557683316-973673baf926?w=800",
+              title,
+              desc,
+              img: imgPreview || "https://images.unsplash.com/photo-1557683316-973673baf926?w=800",
               status: 'open',
               date: `${selectedDate} ${selectedTime}`,
               price: `${Number(priceRaw).toLocaleString()}원`,
               loc,
               author: currentUser?.name || '익명',
-              hostEmail: currentUser?.email,
-              level: '입문', type: category === 'networking' ? 'study' : 'recruit'
+              level: '입문',
+              type: category === 'networking' ? 'study' : 'recruit'
           };
-          db.updateItem(newItem);
-          setAllItems(db.getItems()); // Refresh
-          showToast("콘텐츠가 성공적으로 등록되었습니다!", "success");
-          setIsCreating(false);
+          const created = await database.createItem(newItem);
+          if (created) {
+            const items = await database.getItems();
+            setAllItems(items);
+            if (currentUser?.name) {
+              const myItems = await database.getMyCreatedItems(currentUser.name);
+              setMyCreatedItems(myItems);
+            }
+            showToast("콘텐츠가 성공적으로 등록되었습니다!", "success");
+            setIsCreating(false);
+          } else {
+            showToast("등록 실패", "error");
+          }
       };
 
       return (
@@ -186,7 +213,7 @@ const MyPage: React.FC<MyPageProps> = ({
             <p className="text-slate-200">나의 성장 기록과 파트너(호스트) 활동 내역을 확인하세요.</p>
         </div>
       </div>
-      
+
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-8 relative -mt-16 mx-4 md:mx-0 z-20 overflow-hidden">
         <div className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 md:gap-8">
             <div className="flex flex-col items-center text-center md:items-start md:text-left flex-shrink-0">

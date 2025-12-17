@@ -2,7 +2,7 @@
 export type CategoryType = 'networking' | 'minddate' | 'crew' | 'lecture';
 
 export interface User {
-    id: number;
+    id: string; // UUID (Supabase Auth)
     name: string;
     email: string;
     avatar: string;
