@@ -39,7 +39,7 @@ export async function createItem(item: Omit<AnyItem, 'id'>): Promise<AnyItem | n
     return data ? mapDbItemToItem(data) : null
   } catch (error) {
     console.error('Error creating item:', error)
-    return null
+    throw error // Rethrow to show detailed error in UI
   }
 }
 
@@ -49,7 +49,7 @@ export async function updateItem(id: number, updates: Partial<AnyItem>): Promise
     return await supabasePatch('items', `id=eq.${id}`, dbUpdates)
   } catch (error) {
     console.error('Error updating item:', error)
-    return false
+    throw error
   }
 }
 
@@ -644,6 +644,7 @@ function mapDbItemToItem(dbItem: any): AnyItem {
     price: dbItem.price,
     loc: dbItem.location,
     status: dbItem.status,
+    authorId: dbItem.author_id,
     reviews: [],
     hostBankInfo: dbItem.host_bank_info,
     kakaoChatUrl: dbItem.kakao_chat_url,
@@ -715,6 +716,7 @@ function mapItemToDbItem(item: AnyItem): any {
     price: item.price,
     location: item.loc,
     status: item.status,
+    author_id: item.authorId,
     host_bank_info: item.hostBankInfo,
     kakao_chat_url: item.kakaoChatUrl,
     host_description: item.hostDescription,

@@ -73,6 +73,7 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
             price: `${Number(priceRaw).toLocaleString()}원`,
             loc,
             author: currentUser?.name || '익명',
+            authorId: currentUser?.id,
         };
 
         let newItem: any = { ...baseItem, categoryType: category };
@@ -102,15 +103,27 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
                 teacherProfile: currentUser?.avatar,
                 curriculum: curriculum.filter(c => c.trim() !== '')
             };
+        } else if (category === 'minddate') {
+            newItem = {
+                ...newItem,
+                type: 'dating',
+                target: ['2030', '직장인'],
+                genderRatio: { male: 50, female: 50 }
+            };
         }
 
-        const created = await database.createItem(newItem);
-        if (created) {
-            onSuccess();
-            showToast("콘텐츠가 성공적으로 등록되었습니다!", "success");
-            onClose();
-        } else {
-            showToast("등록 실패", "error");
+        try {
+            const created = await database.createItem(newItem);
+            if (created) {
+                onSuccess();
+                showToast("콘텐츠가 성공적으로 등록되었습니다!", "success");
+                onClose();
+            } else {
+                showToast("등록 실패: 데이터 저장 도중 오류가 발생했습니다.", "error");
+            }
+        } catch (err: any) {
+            console.error("Create item error:", err);
+            showToast(`등록 실패: ${err.message || '알 수 없는 오류'}`, "error");
         }
     };
 
@@ -132,6 +145,7 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
                                 <option value="crew">임장 크루</option>
                                 <option value="networking">네트워킹</option>
                                 <option value="lecture">강의</option>
+                                <option value="minddate">다이아몬드 (데이트)</option>
                             </select>
                         </div>
 
@@ -188,7 +202,7 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
                     </div>
 
                     <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
-                        <h4 className="font-bold text-slate-800 dark:text-white mb-4">상세 정보 ({category === 'crew' ? '임장' : category === 'networking' ? '네트워킹' : '강의'})</h4>
+                        <h4 className="font-bold text-slate-800 dark:text-white mb-4">상세 정보 ({category === 'crew' ? '임장' : category === 'networking' ? '네트워킹' : category === 'lecture' ? '강의' : '다이아몬드'})</h4>
 
                         {category === 'crew' && (
                             <div className="space-y-4">
@@ -220,7 +234,7 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-500 mb-1">최대 인원</label>
-                                    <input type="number" value={maxParticipants} onChange={(e) => setMaxParticipants(parseInt(e.target.value))} className="w-full p-2 border rounded dark:bg-slate-800 dark:text-white dark:border-slate-700" />
+                                    <input type="number" value={maxParticipants} onChange={(e) => setMaxParticipants(parseInt(e.target.value) || 0)} className="w-full p-2 border rounded dark:bg-slate-800 dark:text-white dark:border-slate-700" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-500 mb-1">진행 순서 / 주제</label>

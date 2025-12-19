@@ -66,6 +66,7 @@ export interface BaseItem {
   title: string;
   img: string;
   author: string;
+  authorId?: string;
   views: number;
   comments: number;
   desc: string;
