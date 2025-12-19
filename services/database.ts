@@ -580,10 +580,27 @@ export async function createReview(review: Omit<Review, 'id' | 'createdAt' | 'up
   }
 }
 
-export async function seedDummyReviews(): Promise<boolean> {
+export async function seedDummyReviews(userId: string): Promise<boolean> {
   try {
-    const items = await getItems();
-    if (items.length === 0) return false;
+    let items = await getItems();
+
+    // 1. If no items exist, create a dummy one first
+    if (items.length === 0) {
+      console.log("No items found, creating a dummy item for seeding reviews...");
+      await supabasePost('items', {
+        category_type: 'networking',
+        title: '신년 맞이 부동산 네트워킹',
+        author: '운영자',
+        author_id: userId,
+        status: 'ended',
+        description: '리뷰 테스트를 위한 더미 아이템입니다.',
+        event_date: new Date().toLocaleDateString('ko-KR'),
+        networking_type: 'social'
+      });
+      items = await getItems();
+    }
+
+    if (items.length === 0) throw new Error("아이템을 불러오거나 생성할 수 없습니다. DB 연결이나 RLS 권한을 확인해주세요.");
 
     const dummyReviews = [
       { user: "김민재", text: "정말 알찬 시간이었습니다. 특히 실전 임장 코스가 구체적이어서 좋았어요!", rating: 5 },
@@ -593,22 +610,43 @@ export async function seedDummyReviews(): Promise<boolean> {
       { user: "정호석", text: "조금 더 심화된 내용도 다뤄주시면 좋을 것 같아요. 전반적으로 만족합니다.", rating: 4 },
     ];
 
+    let successCount = 0;
     for (let i = 0; i < dummyReviews.length; i++) {
       const itemIdx = i % items.length;
-      await supabasePost('reviews', {
-        item_id: items[itemIdx].id,
-        user_id: 'dummy-user-id-' + i,
-        user: dummyReviews[i].user,
-        text: dummyReviews[i].text,
-        rating: dummyReviews[i].rating,
-        date: new Date(Date.now() - (i * 86400000)).toLocaleDateString('ko-KR'),
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${dummyReviews[i].user}`
-      });
+      const targetItem = items[itemIdx];
+
+      // RLS Policy on reviews only allows inserting on 'ended' items
+      if (targetItem.status !== 'ended') {
+        const patched = await supabasePatch('items', `id=eq.${targetItem.id}`, { status: 'ended' });
+        if (!patched) {
+          console.warn(`Failed to set item ${targetItem.id} to 'ended'. Skipping review for this item.`);
+          continue;
+        }
+      }
+
+      try {
+        await supabasePost('reviews', {
+          item_id: targetItem.id,
+          user_id: userId,
+          user: dummyReviews[i].user,
+          text: dummyReviews[i].text,
+          rating: dummyReviews[i].rating,
+          date: new Date(Date.now() - (i * 86400000)).toLocaleDateString('ko-KR'),
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${dummyReviews[i].user}`
+        });
+        successCount++;
+      } catch (e) {
+        console.error(`Failed to post review ${i}:`, e);
+      }
+    }
+
+    if (successCount === 0) {
+      throw new Error("리뷰 생성에 모두 실패했습니다. 로그를 확인해주세요.");
     }
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Seed error:', error);
-    return false;
+    throw new Error(`더미 데이터 생성 중 오류 발생: ${error.message || '알 수 없는 오류'}`);
   }
 }
 

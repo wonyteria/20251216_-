@@ -328,7 +328,7 @@ const App: React.FC = () => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={closeToast} />}
       <Routes>
         <Route path="/admin" element={
-          <AdminPage showToast={showToast} />
+          <AdminPage showToast={showToast} currentUser={currentUser} />
         } />
         <Route path="*" element={
           <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">

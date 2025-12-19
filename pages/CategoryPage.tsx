@@ -223,22 +223,23 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
       )}
 
       {/* Review Section */}
-      {categoryReviews.length > 0 && (
-        <div className="mt-20 pt-10 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex justify-between items-end mb-8 px-2">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{reviewTitle}</h2>
-              <p className="text-sm text-slate-400 mt-1">멤버들이 직접 남긴 솔직한 경험담</p>
-            </div>
-            {currentUser && reviewableCount > 0 && (
-              <button
-                onClick={() => setIsWritingReview(true)}
-                className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-              >
-                + 나도 후기 쓰기
-              </button>
-            )}
+      <div className="mt-20 pt-10 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex justify-between items-end mb-8 px-2">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{reviewTitle}</h2>
+            <p className="text-sm text-slate-400 mt-1">멤버들이 직접 남긴 솔직한 경험담</p>
           </div>
+          {currentUser && reviewableCount > 0 && (
+            <button
+              onClick={() => setIsWritingReview(true)}
+              className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+            >
+              + 나도 후기 쓰기
+            </button>
+          )}
+        </div>
+
+        {categoryReviews.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categoryReviews.slice(0, 6).map((review, idx) => (
               <div
@@ -272,16 +273,28 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-16 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-300 mb-4 shadow-sm">
+              <Star size={32} />
+            </div>
+            <p className="font-bold text-slate-800 dark:text-slate-200">아직 등록된 후기가 없습니다.</p>
+            <p className="text-sm text-slate-400 mt-1">첫 번째 리뷰의 주인공이 되어보세요!</p>
+          </div>
+        )}
+      </div>
 
       {isCreating && (
         <CreateContentModal
           onClose={() => setIsCreating(false)}
           currentUser={currentUser}
           defaultCategory={categoryType === 'crew' ? 'crew' : categoryType as any}
-          onSuccess={() => {
-            // Trigger global refresh if possible, or just wait for interval
+          onSuccess={async () => {
+            // Trigger global refresh
+            if (currentUser) {
+              const reviewable = await database.getReviewableItems(currentUser.id);
+              setReviewableCount(reviewable.length);
+            }
           }}
           showToast={showToast}
         />
@@ -293,6 +306,7 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
           currentUser={currentUser}
           onSuccess={async () => {
             const reviews = await database.getReviewsByCategory(categoryType);
+            console.log("Fetched reviews:", reviews); // Added for debugging
             setCategoryReviews(reviews);
             const reviewable = await database.getReviewableItems(currentUser!.id);
             setReviewableCount(reviewable.length);

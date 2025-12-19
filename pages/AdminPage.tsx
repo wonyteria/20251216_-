@@ -14,7 +14,7 @@ import { supabaseGet } from '../services/supabase';
 import { adminUpload } from '../services/storage';
 import AdminItemEditModal from '../components/AdminItemEditModal';
 
-const AdminPage = ({ showToast }: { showToast: (msg: string, type?: 'success' | 'error' | 'info') => void }) => {
+const AdminPage = ({ showToast, currentUser }: { showToast: (msg: string, type?: 'success' | 'error' | 'info') => void, currentUser: User | null }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [users, setUsers] = useState<User[]>([]);
@@ -435,12 +435,17 @@ const AdminPage = ({ showToast }: { showToast: (msg: string, type?: 'success' | 
               </div>
               <button
                 onClick={async () => {
-                  const success = await database.seedDummyReviews();
-                  if (success) {
-                    showToast("더미 리뷰 데이터가 생성되었습니다.", "success");
-                    loadData();
-                  } else {
-                    showToast("데이터 생성 실패", "error");
+                  if (!currentUser) return;
+                  try {
+                    const success = await database.seedDummyReviews(currentUser.id);
+                    if (success) {
+                      showToast("더미 리뷰 데이터가 생성되었습니다. (아이템 상태가 '종료'로 변경되었습니다)", "success");
+                      loadData();
+                    } else {
+                      showToast("아이템이 하나도 없어 리뷰를 생성할 수 없습니다.", "error");
+                    }
+                  } catch (err: any) {
+                    showToast(err.message || "데이터 생성 실패", "error");
                   }
                 }}
                 className="px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold text-xs"
