@@ -4,7 +4,9 @@ import Card from '../components/Card';
 import { AnyItem, CategoryType, BadgeConfig, CrewItem, CategoryHeaderInfo, User } from '../types';
 import { Quote, Star, SearchX, ChevronDown, ChevronUp, BookOpen, Plus } from 'lucide-react';
 import CreateContentModal from '../components/CreateContentModal';
+import ReviewWriteModal from '../components/ReviewWriteModal';
 import * as database from '../services/database';
+import { Review } from '../types';
 
 interface CategoryPageProps {
   categoryType: CategoryType;
@@ -14,6 +16,8 @@ interface CategoryPageProps {
   onItemClick: (item: AnyItem) => void;
   likedIds: number[];
   toggleLike: (id: number) => void;
+  appliedIds?: number[];
+  appStatuses?: Record<number, string>;
   detailImage?: string;
   currentUser: User | null;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
@@ -28,6 +32,8 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
   onItemClick,
   likedIds,
   toggleLike,
+  appliedIds,
+  appStatuses,
   detailImage,
   currentUser,
   showToast
@@ -36,6 +42,23 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
   const [filteredItems, setFilteredItems] = useState<AnyItem[]>(items);
   const [isDetailExpanded, setIsDetailExpanded] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isWritingReview, setIsWritingReview] = useState(false);
+  const [categoryReviews, setCategoryReviews] = useState<Review[]>([]);
+  const [reviewableCount, setReviewableCount] = useState(0);
+
+  useEffect(() => {
+    const loadReviews = async () => {
+      const reviews = await database.getReviewsByCategory(categoryType);
+      setCategoryReviews(reviews);
+    };
+    loadReviews();
+
+    if (currentUser) {
+      database.getReviewableItems(currentUser.id).then(items => {
+        setReviewableCount(items.length);
+      });
+    }
+  }, [categoryType, currentUser]);
 
   // Check if user can create content in this category
   const canCreate = currentUser?.roles?.some(r => r === 'super_admin' || r === `${categoryType}_manager`);
@@ -90,20 +113,9 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
     <div className="max-w-7xl mx-auto pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Minimal Header (Dynamic Text) */}
-      <div className="pt-4 pb-6 px-1 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">{title}</h1>
-          <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl">{description}</p>
-        </div>
-        {canCreate && (
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-500 transition-all hover:scale-105"
-          >
-            <Plus size={18} />
-            <span>콘텐츠 만들기</span>
-          </button>
-        )}
+      <div className="pt-4 pb-6 px-1">
+        <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">{title}</h1>
+        <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl">{description}</p>
       </div>
 
       {/* Detail Image Preview (Peek) - Fixed for Long Images */}
@@ -146,19 +158,42 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
       )}
 
       {/* Sticky Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 pb-1 overflow-x-auto no-scrollbar sticky top-0 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur z-20 pt-4 -mx-4 px-4 md:mx-0 md:px-0 transition-colors duration-300">
-        {badges.map((badge) => (
+      <div className="flex items-center justify-between gap-4 mb-6 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur z-20 pt-4 -mx-4 px-4 md:mx-0 md:px-0 transition-colors duration-300">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 flex-1">
+          {badges.map((badge) => (
+            <button
+              key={badge.value}
+              onClick={() => setFilter(badge.value)}
+              className={`px-6 py-3 rounded-t-lg text-sm font-bold transition-all relative top-[1px] whitespace-nowrap ${filter === badge.value
+                ? `text-slate-900 dark:text-white border-b-2 border-slate-900 dark:border-white bg-slate-50 dark:bg-slate-950`
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'
+                }`}
+            >
+              {badge.label}
+            </button>
+          ))}
+        </div>
+        {canCreate && (
           <button
-            key={badge.value}
-            onClick={() => setFilter(badge.value)}
-            className={`px-6 py-3 rounded-t-lg text-sm font-bold transition-all relative top-[1px] whitespace-nowrap ${filter === badge.value
-              ? `text-slate-900 dark:text-white border-b-2 border-slate-900 dark:border-white bg-slate-50 dark:bg-slate-950`
-              : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-900/50'
-              }`}
+            onClick={() => setIsCreating(true)}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 mb-2 bg-indigo-600 text-white rounded-xl font-bold shadow-md shadow-indigo-200 dark:shadow-none hover:bg-indigo-500 transition-all text-xs md:text-sm"
           >
-            {badge.label}
+            <Plus size={16} />
+            <span className="hidden sm:inline">콘텐츠 만들기</span>
+            <span className="sm:hidden">만들기</span>
           </button>
-        ))}
+        )}
+        {currentUser && reviewableCount > 0 && (
+          <button
+            onClick={() => setIsWritingReview(true)}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 mb-2 bg-amber-500 text-white rounded-xl font-bold shadow-md shadow-amber-200 dark:shadow-none hover:bg-amber-400 transition-all text-xs md:text-sm"
+          >
+            <Star size={16} />
+            <span className="hidden sm:inline">후기 작성하기</span>
+            <span className="sm:hidden">후기</span>
+            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{reviewableCount}</span>
+          </button>
+        )}
       </div>
 
       {/* Grid Content */}
@@ -171,6 +206,8 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
                 onClick={() => onItemClick(item)}
                 isLiked={likedIds.includes(item.id)}
                 onToggleLike={() => toggleLike(item.id)}
+                isApplied={appliedIds?.includes(item.id)}
+                applicationStatus={appStatuses?.[item.id] as any}
               />
             </div>
           ))}
@@ -186,29 +223,51 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
       )}
 
       {/* Review Section */}
-      {reviewedItems.length > 0 && (
+      {categoryReviews.length > 0 && (
         <div className="mt-20 pt-10 border-t border-slate-200 dark:border-slate-800">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-8 text-center">{reviewTitle}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {reviewedItems.slice(0, 3).map((item, idx) => (
-              <div key={idx} className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative hover:translate-y-[-4px] transition-transform cursor-pointer animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: `${idx * 100}ms` }} onClick={() => onItemClick(item)}>
-                <Quote className="absolute top-4 right-4 text-slate-100 dark:text-slate-800 fill-slate-100 dark:fill-slate-800 w-10 h-10" />
-                <div className="flex items-center gap-3 mb-4">
-                  <img src={item.img} className="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-slate-700 shadow-sm" />
+          <div className="flex justify-between items-end mb-8 px-2">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{reviewTitle}</h2>
+              <p className="text-sm text-slate-400 mt-1">멤버들이 직접 남긴 솔직한 경험담</p>
+            </div>
+            {currentUser && reviewableCount > 0 && (
+              <button
+                onClick={() => setIsWritingReview(true)}
+                className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+              >
+                + 나도 후기 쓰기
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categoryReviews.slice(0, 6).map((review, idx) => (
+              <div
+                key={review.id}
+                className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm relative hover:translate-y-[-4px] transition-all duration-300 animate-in fade-in slide-in-from-bottom-8 fill-mode-backwards group"
+                style={{ animationDelay: `${idx * 100}ms` }}
+              >
+                <Quote className="absolute top-6 right-8 text-slate-50 dark:text-slate-800/30 fill-slate-50 dark:fill-slate-800/30 w-12 h-12 transition-colors group-hover:text-indigo-50 dark:group-hover:text-indigo-900/10 group-hover:fill-indigo-50 dark:group-hover:fill-indigo-900/10" />
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-white dark:border-slate-800 shadow-sm">
+                    <img src={review.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.user}`} className="w-full h-full object-cover" />
+                  </div>
                   <div>
-                    <p className="font-bold text-slate-800 dark:text-white text-sm line-clamp-1">{item.title}</p>
+                    <p className="font-black text-slate-900 dark:text-white text-sm">{review.user}</p>
                     <div className="flex gap-0.5 mt-1">
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={12} className={`${i < (item.reviews?.[0]?.rating || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200 dark:text-slate-700'}`} />
+                        <Star key={i} size={12} className={`${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200 dark:text-slate-700'}`} />
                       ))}
                     </div>
                   </div>
                 </div>
-                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed line-clamp-3">
-                  "{item.reviews?.[0]?.text}"
+                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed line-clamp-4 font-medium italic">
+                  "{review.text}"
                 </p>
-                <div className="mt-4 text-xs text-slate-400 text-right">
-                  - {item.reviews?.[0]?.user}님
+                <div className="mt-6 flex justify-between items-center pt-6 border-t border-slate-50 dark:border-slate-800/50">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{review.date}</p>
+                  <div className="flex items-center gap-1 text-[10px] font-black text-indigo-500 uppercase tracking-tighter cursor-pointer hover:underline" onClick={() => onItemClick({ id: review.itemId } as any)}>
+                    View Product <Plus size={10} />
+                  </div>
                 </div>
               </div>
             ))}
@@ -223,6 +282,20 @@ const CategoryPage: React.FC<CategoryPageProps> = ({
           defaultCategory={categoryType === 'crew' ? 'crew' : categoryType as any}
           onSuccess={() => {
             // Trigger global refresh if possible, or just wait for interval
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {isWritingReview && (
+        <ReviewWriteModal
+          onClose={() => setIsWritingReview(false)}
+          currentUser={currentUser}
+          onSuccess={async () => {
+            const reviews = await database.getReviewsByCategory(categoryType);
+            setCategoryReviews(reviews);
+            const reviewable = await database.getReviewableItems(currentUser!.id);
+            setReviewableCount(reviewable.length);
           }}
           showToast={showToast}
         />

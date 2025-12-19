@@ -238,7 +238,7 @@ const MyPage: React.FC<MyPageProps> = ({
                                 {myApplications.map(app => {
                                     const item = allItems.find(i => i.id === app.itemId);
                                     if (!item) return null;
-                                    const isCancellable = (app.status === 'applied' || app.status === 'paid');
+                                    const isCancellable = (app.status === 'applied' || app.status === 'confirmed' || app.status === 'paid');
 
                                     return (
                                         <div key={app.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-start md:items-center hover:shadow-md transition-shadow">
@@ -247,16 +247,19 @@ const MyPage: React.FC<MyPageProps> = ({
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${app.status === 'applied' ? 'bg-yellow-100 text-yellow-700' :
-                                                        app.status === 'paid' ? 'bg-blue-100 text-blue-700' :
-                                                            app.status === 'checked-in' ? 'bg-green-100 text-green-700' :
-                                                                app.status === 'refund-requested' ? 'bg-red-100 text-red-700' :
-                                                                    'bg-slate-100 text-slate-500'
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${app.status === 'applied' ? 'bg-amber-100 text-amber-700' :
+                                                        app.status === 'confirmed' ? 'bg-indigo-100 text-indigo-700' :
+                                                            app.status === 'paid' ? 'bg-blue-100 text-blue-700' :
+                                                                app.status === 'checked-in' ? 'bg-green-100 text-green-700' :
+                                                                    app.status === 'refund-requested' ? 'bg-red-100 text-red-700' :
+                                                                        'bg-slate-100 text-slate-500'
                                                         }`}>
-                                                        {app.status === 'applied' ? '신청완료 (입금대기)' :
-                                                            app.status === 'paid' ? '결제완료' :
-                                                                app.status === 'checked-in' ? '참여완료' :
-                                                                    app.status === 'refund-requested' ? '환불요청중' : '환불완료'}
+                                                        {app.status === 'applied' ? '신청대기' :
+                                                            app.status === 'confirmed' ? '신청완료 (입금대기)' :
+                                                                app.status === 'paid' ? '입금완료' :
+                                                                    app.status === 'checked-in' ? '참여확정' :
+                                                                        app.status === 'refund-requested' ? '환불요청중' :
+                                                                            app.status === 'cancelled' ? '취소됨' : '환불완료'}
                                                     </span>
                                                     <span className="text-slate-400 text-xs">{new Date(app.appliedAt).toLocaleDateString()} 신청</span>
                                                 </div>

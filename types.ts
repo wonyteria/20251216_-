@@ -14,7 +14,7 @@ export interface User {
   isProfileComplete?: boolean;
 }
 
-export type ApplicationStatus = 'applied' | 'paid' | 'checked-in' | 'refund-requested' | 'refund-completed';
+export type ApplicationStatus = 'applied' | 'confirmed' | 'paid' | 'checked-in' | 'refund-requested' | 'refund-completed' | 'cancelled';
 
 export interface Application {
   id: number;
@@ -28,12 +28,26 @@ export interface Application {
   userPhone?: string; // For host view
 }
 
+export interface UserNotification {
+  id: number;
+  userId: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export interface Review {
+  id: number;
+  itemId: number;
+  userId: string;
   user: string;
   text: string;
   rating: number;
   date?: string;
-  avatar?: string; // Optional user avatar
+  avatar?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BriefingItem {

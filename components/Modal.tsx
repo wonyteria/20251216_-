@@ -1,8 +1,10 @@
 
 import React, { useState } from 'react';
 import { X, Calendar, MapPin, DollarSign, User, ChevronRight, Download, Eye, MessageCircle, BarChart2, Heart, AlertCircle, CheckCircle2, Copy, Star, PenTool, Zap, Lock, BookOpen, HelpCircle, Send, FileText, Smartphone, Award, Briefcase } from 'lucide-react';
-import { AnyItem, CrewItem, LectureItem, MatchingItem, NetworkingItem, User as UserType } from '../types';
+import { AnyItem, CrewItem, LectureItem, MatchingItem, NetworkingItem, User as UserType, Review, ApplicationStatus } from '../types';
+import * as database from '../services/database';
 import ProfileCompletionModal from './ProfileCompletionModal';
+import { Loader2 } from 'lucide-react';
 
 interface ModalProps {
     item: AnyItem | null;
@@ -10,6 +12,7 @@ interface ModalProps {
     isLiked: boolean;
     toggleLike: () => void;
     isApplied: boolean;
+    applicationStatus?: ApplicationStatus;
     isUnlocked: boolean;
     onApply: (id: number) => void;
     onUnlock: (id: number) => void;
@@ -18,17 +21,43 @@ interface ModalProps {
     onUpdateUser: (user: UserType) => void;
 }
 
+const getStatusLabel = (status?: ApplicationStatus) => {
+    switch (status) {
+        case 'applied': return '신청대기';
+        case 'confirmed': return '신청완료';
+        case 'paid': return '입금완료';
+        case 'checked-in': return '참여확정';
+        case 'refund-requested': return '환불요청중';
+        case 'refund-completed': return '환불완료';
+        case 'cancelled': return '취소됨';
+        default: return '신청완료';
+    }
+};
+
+const getStatusButtonLabel = (status?: ApplicationStatus) => {
+    switch (status) {
+        case 'applied': return '신청대기';
+        case 'confirmed': return '신청완료';
+        case 'paid': return '입금완료';
+        case 'checked-in': return '참여확정';
+        case 'refund-requested': return '환불요청중';
+        default: return '신청완료';
+    }
+};
+
 const Modal: React.FC<ModalProps> = ({
     item, onClose,
     isLiked, toggleLike,
-    isApplied, isUnlocked,
+    isApplied, applicationStatus, isUnlocked,
     onApply, onUnlock,
     showToast,
     currentUser,
     onUpdateUser
 }) => {
     const [step, setStep] = useState<'info' | 'payment'>('info');
-    const [activeTab, setActiveTab] = useState<'details' | 'host' | 'qna'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'host' | 'qna' | 'reviews'>('details');
+    const [itemReviews, setItemReviews] = useState<Review[]>([]);
+    const [isReviewLoading, setIsReviewLoading] = useState(false);
     const [question, setQuestion] = useState("");
     const [isSecret, setIsSecret] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
@@ -52,6 +81,20 @@ const Modal: React.FC<ModalProps> = ({
         setQuestion("");
         showToast("문의가 등록되었습니다. 관리자 확인 후 답변드립니다.", "success");
     };
+
+    const loadItemReviews = async () => {
+        if (!item) return;
+        setIsReviewLoading(true);
+        const reviews = await database.getReviewsByItemId(item.id);
+        setItemReviews(reviews);
+        setIsReviewLoading(false);
+    };
+
+    React.useEffect(() => {
+        if (activeTab === 'reviews') {
+            loadItemReviews();
+        }
+    }, [activeTab]);
 
     const checkProfileAndProceed = () => {
         if (!currentUser) return; // Should be handled by App.tsx access control, but safety check
@@ -322,6 +365,59 @@ const Modal: React.FC<ModalProps> = ({
         </div>
     );
 
+    const ReviewsSection = () => (
+        <div className="animate-in fade-in duration-300">
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white">참여자 후기</h3>
+                    <p className="text-xs text-slate-400 mt-1">이 모임에 참여한 분들의 생생한 소감입니다.</p>
+                </div>
+                {itemReviews.length > 0 && (
+                    <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-full border border-amber-100 dark:border-amber-900/30">
+                        <Star size={14} className="text-amber-500 fill-amber-500" />
+                        <span className="text-sm font-black text-amber-700 dark:text-amber-300">
+                            {(itemReviews.reduce((acc, r) => acc + r.rating, 0) / itemReviews.length).toFixed(1)}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {isReviewLoading ? (
+                <div className="py-10 text-center text-slate-400">
+                    <Loader2 className="animate-spin mx-auto mb-2" /> 후기 로딩 중...
+                </div>
+            ) : itemReviews.length > 0 ? (
+                <div className="space-y-4">
+                    {itemReviews.map((r, i) => (
+                        <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full overflow-hidden border border-white dark:border-slate-700">
+                                        <img src={r.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${r.user}`} className="w-full h-full object-cover" />
+                                    </div>
+                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-100">{r.user}</span>
+                                </div>
+                                <div className="flex gap-0.5">
+                                    {[...Array(5)].map((_, i) => (
+                                        <Star key={i} size={10} className={i < r.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200 dark:text-slate-700'} />
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">"{r.text}"</p>
+                            <p className="text-[10px] text-slate-400 mt-3 font-bold uppercase">{r.date}</p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="py-16 text-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <Star size={32} className="mx-auto text-slate-200 dark:text-slate-700 mb-3" />
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">아직 등록된 후기가 없습니다.</p>
+                    <p className="text-xs text-slate-400 mt-1">첫 번째 리뷰의 주인공이 되어보세요!</p>
+                </div>
+            )}
+        </div>
+    );
+
     // --- Mind Date Modal ---
     if (item.categoryType === 'minddate') {
         const matchItem = item as MatchingItem;
@@ -360,6 +456,7 @@ const Modal: React.FC<ModalProps> = ({
                                 <div className="flex border-b border-slate-100 dark:border-slate-800 mb-6">
                                     <button onClick={() => setActiveTab('details')} className={`flex-1 pb-3 text-sm font-bold transition-colors ${activeTab === 'details' ? 'text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 dark:border-pink-400' : 'text-slate-400'}`}>상세정보</button>
                                     <button onClick={() => setActiveTab('host')} className={`flex-1 pb-3 text-sm font-bold transition-colors ${activeTab === 'host' ? 'text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 dark:border-pink-400' : 'text-slate-400'}`}>호스트 소개</button>
+                                    <button onClick={() => setActiveTab('reviews')} className={`flex-1 pb-3 text-sm font-bold transition-colors ${activeTab === 'reviews' ? 'text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 dark:border-pink-400' : 'text-slate-400'}`}>리뷰 ({itemReviews.length})</button>
                                     <button onClick={() => setActiveTab('qna')} className={`flex-1 pb-3 text-sm font-bold transition-colors ${activeTab === 'qna' ? 'text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 dark:border-pink-400' : 'text-slate-400'}`}>문의하기</button>
                                 </div>
 
@@ -398,6 +495,8 @@ const Modal: React.FC<ModalProps> = ({
                                     </div>
                                 ) : activeTab === 'host' ? (
                                     <HostSection />
+                                ) : activeTab === 'reviews' ? (
+                                    <ReviewsSection />
                                 ) : (
                                     <QnaSection />
                                 )}
@@ -548,10 +647,11 @@ const Modal: React.FC<ModalProps> = ({
 
                         {step === 'info' ? (
                             <>
-                                <div className="flex border-b border-slate-100 dark:border-slate-800 mb-6">
-                                    <button onClick={() => setActiveTab('details')} className={`pb-3 flex-1 text-sm font-bold transition-colors ${activeTab === 'details' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>상세정보</button>
-                                    <button onClick={() => setActiveTab('host')} className={`pb-3 flex-1 text-sm font-bold transition-colors ${activeTab === 'host' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>호스트 소개</button>
-                                    <button onClick={() => setActiveTab('qna')} className={`pb-3 flex-1 text-sm font-bold transition-colors ${activeTab === 'qna' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>문의하기</button>
+                                <div className="flex border-b border-slate-100 dark:border-slate-800 mb-6 overflow-x-auto no-scrollbar">
+                                    <button onClick={() => setActiveTab('details')} className={`pb-3 px-2 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'details' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>상세정보</button>
+                                    <button onClick={() => setActiveTab('host')} className={`pb-3 px-2 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'host' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>호스트 소개</button>
+                                    <button onClick={() => setActiveTab('reviews')} className={`pb-3 px-2 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'reviews' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>리뷰 ({itemReviews.length})</button>
+                                    <button onClick={() => setActiveTab('qna')} className={`pb-3 px-2 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'qna' ? `text-${themeColor}-600 dark:text-${themeColor}-400 border-b-2 border-${themeColor}-600 dark:border-${themeColor}-400` : 'text-slate-400'}`}>문의하기</button>
                                 </div>
 
                                 {activeTab === 'details' ? (
@@ -589,6 +689,8 @@ const Modal: React.FC<ModalProps> = ({
                                     </>
                                 ) : activeTab === 'host' ? (
                                     <HostSection />
+                                ) : activeTab === 'reviews' ? (
+                                    <ReviewsSection />
                                 ) : (
                                     <QnaSection />
                                 )}
@@ -599,11 +701,11 @@ const Modal: React.FC<ModalProps> = ({
                                     </div>
 
                                     <button
-                                        disabled={isEnded || isApplied}
-                                        onClick={() => isApplied ? showToast("이미 신청하셨습니다!", "info") : checkProfileAndProceed()}
-                                        className={`px-8 py-3 rounded-xl font-bold text-white transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2 ${isEnded || isApplied ? 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed shadow-none' : buttonClass}`}
+                                        disabled={isEnded || (isApplied && (applicationStatus === 'checked-in' || applicationStatus === 'refund-requested'))}
+                                        onClick={() => isApplied ? showToast(`현재 상태: ${getStatusLabel(applicationStatus)}`, "info") : checkProfileAndProceed()}
+                                        className={`px-8 py-3 rounded-xl font-bold text-white transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2 ${isEnded || (isApplied && (applicationStatus === 'checked-in' || applicationStatus === 'refund-requested')) ? 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed shadow-none' : buttonClass}`}
                                     >
-                                        {isEnded ? '마감되었습니다' : isApplied ? '신청완료' : '신청하기'}
+                                        {isEnded ? '마감되었습니다' : isApplied ? getStatusButtonLabel(applicationStatus) : '신청하기'}
                                     </button>
                                 </div>
                             </>

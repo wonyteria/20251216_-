@@ -58,11 +58,13 @@ const ApplicantListModal: React.FC<ApplicantListModalProps> = ({
 
     const StatusBadge = ({ status }: { status: string }) => {
         switch (status) {
-            case 'applied': return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded">신청완료</span>;
+            case 'applied': return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded">신청대기</span>;
+            case 'confirmed': return <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded">신청완료</span>;
             case 'paid': return <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded">입금완료</span>;
             case 'checked-in': return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">참여확정</span>;
             case 'refund-requested': return <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">환불요청</span>;
             case 'refund-completed': return <span className="px-2 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded">환불완료</span>;
+            case 'cancelled': return <span className="px-2 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded">취소됨</span>;
             default: return <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded">{status}</span>;
         }
     };
@@ -125,8 +127,16 @@ const ApplicantListModal: React.FC<ApplicantListModalProps> = ({
                                         <td className="p-4 text-right">
                                             {app.status === 'applied' && (
                                                 <button
-                                                    onClick={() => handleStatusChange(app.id, 'paid')}
+                                                    onClick={() => handleStatusChange(app.id, 'confirmed')}
                                                     className="px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-500 transition-colors"
+                                                >
+                                                    신청확인
+                                                </button>
+                                            )}
+                                            {app.status === 'confirmed' && (
+                                                <button
+                                                    onClick={() => handleStatusChange(app.id, 'paid')}
+                                                    className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-500 transition-colors"
                                                 >
                                                     입금확인
                                                 </button>

@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import CategoryPage from './pages/CategoryPage';
 import MyPage from './pages/MyPage';
 import AdminPage from './pages/AdminPage';
+import ReviewWriteModal from './components/ReviewWriteModal';
 import { AnyItem, User } from './types';
 import { ArrowUp } from 'lucide-react';
 import { getCurrentUser, signOut, onAuthStateChange } from './services/auth';
@@ -21,11 +22,13 @@ const App: React.FC = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReviewPopupOpen, setIsReviewPopupOpen] = useState(false);
 
   // --- Global State from Supabase ---
   const [items, setItems] = useState<AnyItem[]>([]);
   const [likedIds, setLikedIds] = useState<number[]>([]);
   const [appliedIds, setAppliedIds] = useState<number[]>([]);
+  const [appStatuses, setAppStatuses] = useState<Record<number, string>>({});
   const [unlockedIds, setUnlockedIds] = useState<number[]>([]);
   const [globalData, setGlobalData] = useState<{
     slides: any[];
@@ -77,14 +80,27 @@ const App: React.FC = () => {
   // --- Load user interactions from Supabase ---
   const loadUserInteractions = async (userId: string) => {
     try {
-      const [likes, applies, unlocks] = await Promise.all([
+      const [likes, apps, unlocks, notifications] = await Promise.all([
         database.getUserLikes(userId),
-        database.getUserApplies(userId),
-        database.getUserUnlocks(userId)
+        database.getMyApplications(userId),
+        database.getUserUnlocks(userId),
+        database.getUserNotifications(userId)
       ]);
       setLikedIds(likes);
-      setAppliedIds(applies);
+      setAppliedIds(apps.map(a => a.itemId));
+
+      const statusMap: Record<number, string> = {};
+      apps.forEach(a => {
+        statusMap[a.itemId] = a.status;
+      });
+      setAppStatuses(statusMap);
       setUnlockedIds(unlocks);
+
+      // Show notifications
+      notifications.forEach(n => {
+        showToast(n.message, 'info');
+        database.markNotificationAsRead(n.id);
+      });
     } catch (error) {
       console.error('Error loading user interactions:', error);
     }
@@ -122,18 +138,40 @@ const App: React.FC = () => {
       } else {
         setLikedIds([]);
         setAppliedIds([]);
+        setAppStatuses({});
         setUnlockedIds([]);
       }
     });
 
-    // Refresh data every 30 seconds (less aggressive than before)
-    const interval = setInterval(loadData, 30000);
+    // Refresh data every 30 seconds
+    const interval = setInterval(async () => {
+      await loadData();
+      const user = await getCurrentUser();
+      if (user) {
+        await loadUserInteractions(user.id);
+      }
+    }, 30000);
 
     return () => {
       clearInterval(interval);
       subscription.unsubscribe();
     };
   }, []);
+
+  // --- Auto Review Popup Logic ---
+  useEffect(() => {
+    if (currentUser && !isLoading) {
+      const hasPrompted = sessionStorage.getItem(`review_prompted_${currentUser.id}`);
+      if (!hasPrompted) {
+        database.getReviewableItems(currentUser.id).then(items => {
+          if (items.length > 0) {
+            setIsReviewPopupOpen(true);
+            sessionStorage.setItem(`review_prompted_${currentUser.id}`, 'true');
+          }
+        });
+      }
+    }
+  }, [currentUser, isLoading]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -307,11 +345,11 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <Routes>
-                  <Route path="/" element={<Home onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} slides={globalData.slides} notifications={globalData.notifications} brandTagline={globalData.tagline} dailyBriefing={globalData.briefing} />} />
-                  <Route path="/networking" element={<CategoryPage categoryType="networking" items={items.filter(i => i.categoryType === 'networking')} headerInfo={globalData.headers.networking} detailImage={globalData.detailImages.networking} badges={[{ label: "전체", value: "all" }, { label: "모집중", value: "open" }, { label: "종료됨", value: "ended" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
-                  <Route path="/minddate" element={<CategoryPage categoryType="minddate" items={items.filter(i => i.categoryType === 'minddate')} headerInfo={globalData.headers.minddate} detailImage={globalData.detailImages.minddate} badges={[{ label: "전체", value: "all" }, { label: "모집중", value: "open" }, { label: "종료됨", value: "ended" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
-                  <Route path="/crew" element={<CategoryPage categoryType="crew" items={items.filter(i => i.categoryType === 'crew')} headerInfo={globalData.headers.crew} detailImage={globalData.detailImages.crew} badges={[{ label: "크루 모집", value: "recruit" }, { label: "임장 리포트", value: "report" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
-                  <Route path="/lecture" element={<CategoryPage categoryType="lecture" items={items.filter(i => i.categoryType === 'lecture')} headerInfo={globalData.headers.lecture} detailImage={globalData.detailImages.lecture} badges={[{ label: "전체", value: "all" }, { label: "온라인(VOD)", value: "VOD" }, { label: "오프라인", value: "오프라인" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/" element={<Home onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} appliedIds={appliedIds} appStatuses={appStatuses} slides={globalData.slides} notifications={globalData.notifications} brandTagline={globalData.tagline} dailyBriefing={globalData.briefing} />} />
+                  <Route path="/networking" element={<CategoryPage categoryType="networking" items={items.filter(i => i.categoryType === 'networking')} headerInfo={globalData.headers.networking} detailImage={globalData.detailImages.networking} badges={[{ label: "전체", value: "all" }, { label: "모집중", value: "open" }, { label: "종료됨", value: "ended" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} appliedIds={appliedIds} appStatuses={appStatuses} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/minddate" element={<CategoryPage categoryType="minddate" items={items.filter(i => i.categoryType === 'minddate')} headerInfo={globalData.headers.minddate} detailImage={globalData.detailImages.minddate} badges={[{ label: "전체", value: "all" }, { label: "모집중", value: "open" }, { label: "종료됨", value: "ended" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} appliedIds={appliedIds} appStatuses={appStatuses} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/crew" element={<CategoryPage categoryType="crew" items={items.filter(i => i.categoryType === 'crew')} headerInfo={globalData.headers.crew} detailImage={globalData.detailImages.crew} badges={[{ label: "크루 모집", value: "recruit" }, { label: "임장 리포트", value: "report" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} appliedIds={appliedIds} appStatuses={appStatuses} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/lecture" element={<CategoryPage categoryType="lecture" items={items.filter(i => i.categoryType === 'lecture')} headerInfo={globalData.headers.lecture} detailImage={globalData.detailImages.lecture} badges={[{ label: "전체", value: "all" }, { label: "온라인(VOD)", value: "VOD" }, { label: "오프라인", value: "오프라인" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} appliedIds={appliedIds} appStatuses={appStatuses} currentUser={currentUser} showToast={showToast} />} />
                   <Route path="/mypage" element={<MyPage likedIds={likedIds} appliedIds={appliedIds} unlockedIds={unlockedIds} onItemClick={handleItemClick} toggleLike={toggleLike} currentUser={currentUser} onUpdateUser={handleUpdateUser} showToast={showToast} />} />
                 </Routes>
               </main>
@@ -326,6 +364,7 @@ const App: React.FC = () => {
                 isLiked={likedIds.includes(selectedItem.id)}
                 toggleLike={() => toggleLike(selectedItem.id)}
                 isApplied={appliedIds.includes(selectedItem.id)}
+                applicationStatus={appStatuses[selectedItem.id] as any}
                 isUnlocked={unlockedIds.includes(selectedItem.id)}
                 onApply={handleApply}
                 onUnlock={handleUnlock}
@@ -340,6 +379,16 @@ const App: React.FC = () => {
               onSuccess={handleLoginSuccess}
               showToast={showToast}
             />
+            {isReviewPopupOpen && currentUser && (
+              <ReviewWriteModal
+                onClose={() => setIsReviewPopupOpen(false)}
+                currentUser={currentUser}
+                onSuccess={() => {
+                  loadData();
+                }}
+                showToast={showToast}
+              />
+            )}
           </div>
         } />
       </Routes>

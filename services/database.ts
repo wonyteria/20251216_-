@@ -1,5 +1,5 @@
 import { supabaseGet, supabaseGetSingle, supabasePost, supabasePatch, supabaseDelete } from './supabase'
-import type { AnyItem, User, Slide, BriefingItem, CategoryHeaderInfo, Review, Application, ApplicationStatus, NotificationItem } from '../types'
+import type { AnyItem, User, Slide, BriefingItem, CategoryHeaderInfo, Review, Application, ApplicationStatus, NotificationItem, UserNotification } from '../types'
 
 // --- Items ---
 export async function getItems(): Promise<AnyItem[]> {
@@ -166,9 +166,49 @@ export async function getItemApplicants(itemId: number): Promise<Application[]> 
 export async function updateApplicationStatus(userId: string, itemId: number, status: ApplicationStatus): Promise<boolean> {
   try {
     await supabasePatch('applications', `user_id=eq.${userId}&item_id=eq.${itemId}`, { status })
+
+    // If confirmed, create a notification
+    if (status === 'confirmed') {
+      const itemData = await supabaseGet<any>('items', `id=eq.${itemId}`)
+      if (itemData && itemData.length > 0) {
+        const item = itemData[0];
+        await supabasePost('user_notifications', {
+          user_id: userId,
+          title: '신청 완료 알림',
+          message: `축하합니다! [${item.title}] 모임 신청이 승인되었습니다.`,
+          is_read: false
+        });
+      }
+    }
     return true
   } catch (error) {
     console.error('Error updating application status:', error)
+    return false
+  }
+}
+
+export async function getUserNotifications(userId: string): Promise<UserNotification[]> {
+  try {
+    const data = await supabaseGet<any>('user_notifications', `user_id=eq.${userId}&is_read=eq.false&order=created_at.desc`)
+    return data.map(d => ({
+      id: d.id,
+      userId: d.user_id,
+      title: d.title,
+      message: d.message,
+      isRead: d.is_read,
+      createdAt: d.created_at
+    }))
+  } catch (error) {
+    console.error('Error fetching notifications:', error)
+    return []
+  }
+}
+
+export async function markNotificationAsRead(notificationId: number): Promise<boolean> {
+  try {
+    return await supabasePatch('user_notifications', `id=eq.${notificationId}`, { is_read: true })
+  } catch (error) {
+    console.error('Error marking notification as read:', error)
     return false
   }
 }
@@ -466,11 +506,16 @@ export async function getReviewsByItemId(itemId: number): Promise<Review[]> {
   try {
     const data = await supabaseGet<any>('reviews', `item_id=eq.${itemId}&order=created_at.desc`)
     return data.map(d => ({
+      id: d.id,
+      itemId: d.item_id,
+      userId: d.user_id,
       user: d.user,
       text: d.text,
-      rating: d.rating,
+      rating: Number(d.rating),
       date: d.date,
-      avatar: d.avatar
+      avatar: d.avatar,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at
     }))
   } catch (error) {
     console.error('Error fetching reviews:', error)
@@ -478,20 +523,91 @@ export async function getReviewsByItemId(itemId: number): Promise<Review[]> {
   }
 }
 
-export async function createReview(itemId: number, userId: string, review: Review): Promise<boolean> {
+export async function getReviewsByCategory(categoryType: string): Promise<Review[]> {
+  try {
+    const items = await supabaseGet<any>('items', `category_type=eq.${categoryType}`)
+    if (!items || items.length === 0) return []
+    const itemIds = items.map(i => i.id).join(',')
+    const data = await supabaseGet<any>('reviews', `item_id=in.(${itemIds})&order=created_at.desc`)
+    return data.map(d => ({
+      id: d.id,
+      itemId: d.item_id,
+      userId: d.user_id,
+      user: d.user,
+      text: d.text,
+      rating: Number(d.rating),
+      date: d.date,
+      avatar: d.avatar,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at
+    }))
+  } catch (error) {
+    console.error('Error fetching category reviews:', error)
+    return []
+  }
+}
+
+export async function getReviewableItems(userId: string): Promise<AnyItem[]> {
+  try {
+    const apps = await supabaseGet<any>('applications', `user_id=eq.${userId}&status=in.(paid,checked-in)`)
+    if (!apps || apps.length === 0) return []
+    const itemIds = apps.map(a => a.item_id).join(',')
+    const endedItems = await supabaseGet<any>('items', `id=in.(${itemIds})&status=eq.ended`)
+    const reviews = await supabaseGet<any>('reviews', `user_id=eq.${userId}`)
+    const reviewedItemIds = new Set(reviews.map(r => r.item_id))
+    return endedItems.filter(i => !reviewedItemIds.has(i.id)).map(mapDbItemToItem)
+  } catch (error) {
+    console.error('Error fetching reviewable items:', error)
+    return []
+  }
+}
+
+export async function createReview(review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>): Promise<boolean> {
   try {
     await supabasePost('reviews', {
-      item_id: itemId,
-      user_id: userId,
+      item_id: review.itemId,
+      user_id: review.userId,
       user: review.user,
       text: review.text,
       rating: review.rating,
-      date: review.date,
+      date: new Date().toLocaleDateString(),
       avatar: review.avatar
     })
     return true
   } catch (error) {
     console.error('Error creating review:', error)
+    return false
+  }
+}
+
+export async function updateReview(id: number, updates: Partial<Review>, isAdmin: boolean = false): Promise<boolean> {
+  try {
+    if (!isAdmin) {
+      const review = await supabaseGetSingle<any>('reviews', `id=eq.${id}`)
+      if (!review) return false
+      const createdAt = new Date(review.created_at).getTime()
+      const now = new Date().getTime()
+      const limit = 24 * 60 * 60 * 1000 // 24 hours
+      if (now - createdAt > limit) {
+        throw new Error('리뷰 작성 후 24시간이 지나 수정할 수 없습니다.')
+      }
+    }
+    const dbUpdates: any = {}
+    if (updates.text !== undefined) dbUpdates.text = updates.text
+    if (updates.rating !== undefined) dbUpdates.rating = updates.rating
+    dbUpdates.updated_at = new Date().toISOString()
+    return await supabasePatch('reviews', `id=eq.${id}`, dbUpdates)
+  } catch (error: any) {
+    console.error('Error updating review:', error)
+    throw error // Re-throw to handle in UI
+  }
+}
+
+export async function deleteReview(id: number): Promise<boolean> {
+  try {
+    return await supabaseDelete('reviews', `id=eq.${id}`)
+  } catch (error) {
+    console.error('Error deleting review:', error)
     return false
   }
 }
