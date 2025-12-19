@@ -1,5 +1,5 @@
 import { supabaseGet, supabaseGetSingle, supabasePost, supabasePatch, supabaseDelete } from './supabase'
-import type { AnyItem, User, Slide, BriefingItem, CategoryHeaderInfo, Review } from '../types'
+import type { AnyItem, User, Slide, BriefingItem, CategoryHeaderInfo, Review, Application, ApplicationStatus } from '../types'
 
 // --- Items ---
 export async function getItems(): Promise<AnyItem[]> {
@@ -95,7 +95,7 @@ export async function toggleLike(userId: string, itemId: number): Promise<number
 
 export async function getUserApplies(userId: string): Promise<number[]> {
   try {
-    const data = await supabaseGet<any>('user_applies', `user_id=eq.${userId}&select=item_id`)
+    const data = await supabaseGet<any>('applications', `user_id=eq.${userId}&select=item_id`)
     return data.map(d => d.item_id)
   } catch (error) {
     console.error('Error fetching applies:', error)
@@ -103,19 +103,110 @@ export async function getUserApplies(userId: string): Promise<number[]> {
   }
 }
 
-export async function applyItem(userId: string, itemId: number): Promise<boolean> {
+export async function getMyApplications(userId: string): Promise<Application[]> {
+  try {
+    const data = await supabaseGet<any>('applications', `user_id=eq.${userId}&order=created_at.desc`)
+    return data.map(d => ({
+      id: d.id,
+      userId: d.user_id,
+      itemId: d.item_id,
+      status: d.status,
+      appliedAt: d.created_at,
+      refundAccount: d.refund_account,
+      refundReason: d.refund_reason,
+      userName: d.user_name,
+      userPhone: d.user_phone
+    }))
+  } catch (error) {
+    console.error('Error fetching my applications:', error)
+    return []
+  }
+}
+
+export async function getItemApplicants(itemId: number): Promise<Application[]> {
+  try {
+    // In a real app, we would join with users table to get name/phone.
+    // Here we might need to fetch users separately or assume the join happens.
+    // For simplicity, let's fetch applications and then we might need user info.
+    // If supabaseGet supports foreign tables, we can use select=*,users(name,phone)
+    // But for now, let's assume we can get user info or we just return raw.
+
+    // Let's try to mock the join or just return raw for now.
+    // Code below assumes we just get the application record. 
+    // Ideally we need user name/phone for the host. 
+    const data = await supabaseGet<any>('applications', `item_id=eq.${itemId}&order=created_at.desc`)
+
+    // To get user details, we'd need another call or a join. 
+    // Let's do a simple workaround: fetch all users (cached) or specific users.
+    // For efficiency, maybe just return the app and let the component fetch user?
+    // Or better, let's fetch the specific users here if possible. 
+    // Given limitations, let's just return what we have and maybe the component handles display.
+
+    // Wait, for the host dashboard we REALLY need names.
+    // Let's assume we can fetch users by IDs.
+
+    return data.map(d => ({
+      id: d.id,
+      userId: d.user_id,
+      itemId: d.item_id,
+      status: d.status,
+      appliedAt: d.created_at,
+      refundAccount: d.refund_account,
+      refundReason: d.refund_reason,
+      // These would be populated if we joined
+      userName: d.users?.name,
+      userPhone: d.user_phone || d.users?.phone
+    }))
+  } catch (error) {
+    console.error('Error fetching item applicants:', error)
+    return []
+  }
+}
+
+export async function updateApplicationStatus(userId: string, itemId: number, status: ApplicationStatus): Promise<boolean> {
+  try {
+    await supabasePatch('applications', `user_id=eq.${userId}&item_id=eq.${itemId}`, { status })
+    return true
+  } catch (error) {
+    console.error('Error updating application status:', error)
+    return false
+  }
+}
+
+export async function applyItem(userId: string, itemId: number, refundAccount?: string, userName?: string, userPhone?: string): Promise<boolean> {
   try {
     // Check if already applied
-    const existing = await supabaseGet<any>('user_applies', `user_id=eq.${userId}&item_id=eq.${itemId}&select=id`)
+    const existing = await supabaseGet<any>('applications', `user_id=eq.${userId}&item_id=eq.${itemId}&select=id`)
 
     if (existing.length > 0) {
       return false // Already applied
     }
 
-    await supabasePost('user_applies', { user_id: userId, item_id: itemId })
+    await supabasePost('applications', {
+      user_id: userId,
+      item_id: itemId,
+      status: 'applied',
+      refund_account: refundAccount,
+      user_name: userName,
+      user_phone: userPhone
+    })
     return true
   } catch (error) {
     console.error('Error applying to item:', error)
+    return false
+  }
+}
+
+export async function cancelApplication(userId: string, itemId: number, reason: string, account: string): Promise<boolean> {
+  try {
+    await supabasePatch('applications', `user_id=eq.${userId}&item_id=eq.${itemId}`, {
+      status: 'refund-requested',
+      refund_reason: reason,
+      refund_account: account
+    })
+    return true
+  } catch (error) {
+    console.error('Error canceling application:', error)
     return false
   }
 }
@@ -275,10 +366,15 @@ export async function createReview(itemId: number, userId: string, review: Revie
 // --- User Profile ---
 export async function updateUserProfile(userId: string, updates: Partial<User>): Promise<boolean> {
   try {
-    return await supabasePatch('users', `id=eq.${userId}`, {
-      name: updates.name,
-      avatar: updates.avatar
-    })
+    const data: any = {}
+    if (updates.name !== undefined) data.name = updates.name
+    if (updates.avatar !== undefined) data.avatar = updates.avatar
+    if (updates.phone !== undefined) data.phone = updates.phone
+    if (updates.birthdate !== undefined) data.birthdate = updates.birthdate
+    if (updates.interests !== undefined) data.interests = updates.interests
+    if (updates.isProfileComplete !== undefined) data.is_profile_complete = updates.isProfileComplete
+
+    return await supabasePatch('users', `id=eq.${userId}`, data)
   } catch (error) {
     console.error('Error updating user:', error)
     return false

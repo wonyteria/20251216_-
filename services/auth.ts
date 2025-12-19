@@ -155,8 +155,12 @@ export async function getCurrentUser(): Promise<User | null> {
       email: data.email,
       avatar: data.avatar || '',
       roles: data.roles || [],
-      joinDate: data.join_date
-    } as unknown as User
+      joinDate: data.join_date,
+      phone: data.phone,
+      birthdate: data.birthdate,
+      interests: data.interests,
+      isProfileComplete: data.is_profile_complete
+    } as User
   } catch (error) {
     console.error('Error getting current user:', error)
     return null

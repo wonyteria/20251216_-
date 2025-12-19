@@ -150,13 +150,20 @@ const App: React.FC = () => {
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => setToast({ message, type });
   const closeToast = () => setToast(null);
 
-  const handleItemClick = (item: AnyItem) => setSelectedItem(item);
+  const handleItemClick = (item: AnyItem) => {
+    if (!currentUser) {
+      setIsLoginOpen(true);
+      showToast("로그인이 필요한 서비스입니다.", "error");
+      return;
+    }
+    setSelectedItem(item);
+  };
   const closeItemModal = () => setSelectedItem(null);
 
   // --- User Actions ---
   const calculateLevel = () => {
-      const totalXP = (likedIds.length * 10) + ((appliedIds.length + unlockedIds.length) * 50);
-      return totalXP >= 1000 ? 3 : totalXP >= 300 ? 2 : 1;
+    const totalXP = (likedIds.length * 10) + ((appliedIds.length + unlockedIds.length) * 50);
+    return totalXP >= 1000 ? 3 : totalXP >= 300 ? 2 : 1;
   };
   const getRankName = (lv: number) => lv === 3 ? "부동산 고수" : lv === 2 ? "임대장" : "임린이";
 
@@ -188,7 +195,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const success = await database.applyItem(currentUser.id, id);
+      const success = await database.applyItem(currentUser.id, id, undefined, currentUser.name, currentUser.phone);
       if (success) {
         setAppliedIds(prev => [...prev, id]);
         showToast("신청 완료! 경험치가 상승했습니다 (+50 XP)", "success");
@@ -274,43 +281,57 @@ const App: React.FC = () => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={closeToast} />}
       <Routes>
         <Route path="/admin" element={
-            <AdminPage showToast={showToast} />
+          <AdminPage showToast={showToast} />
         } />
         <Route path="*" element={
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
-              <div className="hidden lg:block">
-                  <Sidebar onLoginClick={() => setIsLoginOpen(true)} currentUser={currentUser} showToast={showToast} isDarkMode={isDarkMode} toggleTheme={toggleTheme} onLogout={handleLogout} userLevel={calculateLevel()} userRank={getRankName(calculateLevel())} />
-              </div>
-              <div className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full max-w-[100vw] overflow-x-hidden">
-                <main className="flex-1 p-4 md:p-6 lg:p-10 pb-24 lg:pb-10 relative">
-                    <div className="lg:hidden flex items-center justify-between mb-6 pt-2">
-                        <div className="flex items-center gap-2"><div className="w-8 h-8 bg-slate-900 dark:bg-white rounded-lg flex items-center justify-center"><span className="text-white dark:text-slate-900 font-extrabold text-sm">임</span></div><span className="font-extrabold text-xl text-slate-900 dark:text-white">임풋</span></div>
-                        <div className="flex items-center gap-3">
-                            <button onClick={toggleTheme} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{isDarkMode ? '☀️' : '🌙'}</button>
-                            {currentUser ? ( <div className="flex items-center gap-2" onClick={handleLogout}><img src={currentUser.avatar} className="w-8 h-8 rounded-full border border-slate-200" alt="profile"/></div> ) : ( <button onClick={() => setIsLoginOpen(true)} className="text-sm font-bold text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">로그인</button> )}
-                        </div>
-                    </div>
-                    <Routes>
-                        <Route path="/" element={<Home onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} slides={globalData.slides} notifications={globalData.notifications} brandTagline={globalData.tagline} dailyBriefing={globalData.briefing} />} />
-                        <Route path="/networking" element={<CategoryPage categoryType="networking" items={items.filter(i=>i.categoryType==='networking')} headerInfo={globalData.headers.networking} detailImage={globalData.detailImages.networking} badges={[{label: "전체", value: "all"}, {label: "모집중", value: "open"}, {label: "종료됨", value: "ended"}]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} />} />
-                        <Route path="/minddate" element={<CategoryPage categoryType="minddate" items={items.filter(i=>i.categoryType==='minddate')} headerInfo={globalData.headers.minddate} detailImage={globalData.detailImages.minddate} badges={[{label: "전체", value: "all"}, {label: "모집중", value: "open"}, {label: "종료됨", value: "ended"}]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} />} />
-                        <Route path="/crew" element={<CategoryPage categoryType="crew" items={items.filter(i=>i.categoryType==='crew')} headerInfo={globalData.headers.crew} detailImage={globalData.detailImages.crew} badges={[{label: "크루 모집", value: "recruit"}, {label: "임장 리포트", value: "report"}]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} />} />
-                        <Route path="/lecture" element={<CategoryPage categoryType="lecture" items={items.filter(i=>i.categoryType==='lecture')} headerInfo={globalData.headers.lecture} detailImage={globalData.detailImages.lecture} badges={[{label: "전체", value: "all"}, {label: "온라인(VOD)", value: "VOD"}, {label: "오프라인", value: "오프라인"}]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} />} />
-                        <Route path="/mypage" element={<MyPage likedIds={likedIds} appliedIds={appliedIds} unlockedIds={unlockedIds} onItemClick={handleItemClick} toggleLike={toggleLike} currentUser={currentUser} onUpdateUser={handleUpdateUser} showToast={showToast} />} />
-                    </Routes>
-                </main>
-                <Footer />
-              </div>
-              <BottomNav />
-              {showScrollTop && ( <button onClick={scrollToTop} className="fixed bottom-20 lg:bottom-8 right-4 lg:right-8 z-50 p-3 bg-slate-900 dark:bg-indigo-600 text-white rounded-full shadow-xl hover:bg-slate-700 dark:hover:bg-indigo-500 transition-all hover:scale-110 active:scale-90 animate-in fade-in zoom-in duration-300"> <ArrowUp size={24} /> </button> )}
-              {selectedItem && ( <Modal item={selectedItem} onClose={closeItemModal} isLiked={likedIds.includes(selectedItem.id)} toggleLike={() => toggleLike(selectedItem.id)} isApplied={appliedIds.includes(selectedItem.id)} isUnlocked={unlockedIds.includes(selectedItem.id)} onApply={handleApply} onUnlock={handleUnlock} showToast={showToast} /> )}
-              <LoginModal
-                isOpen={isLoginOpen}
-                onClose={() => setIsLoginOpen(false)}
-                onSuccess={handleLoginSuccess}
-                showToast={showToast}
-              />
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
+            <div className="hidden lg:block">
+              <Sidebar onLoginClick={() => setIsLoginOpen(true)} currentUser={currentUser} showToast={showToast} isDarkMode={isDarkMode} toggleTheme={toggleTheme} onLogout={handleLogout} userLevel={calculateLevel()} userRank={getRankName(calculateLevel())} />
             </div>
+            <div className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full max-w-[100vw] overflow-x-hidden">
+              <main className="flex-1 p-4 md:p-6 lg:p-10 pb-24 lg:pb-10 relative">
+                <div className="lg:hidden flex items-center justify-between mb-6 pt-2">
+                  <div className="flex items-center gap-2"><div className="w-8 h-8 bg-slate-900 dark:bg-white rounded-lg flex items-center justify-center"><span className="text-white dark:text-slate-900 font-extrabold text-sm">임</span></div><span className="font-extrabold text-xl text-slate-900 dark:text-white">임풋</span></div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={toggleTheme} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{isDarkMode ? '☀️' : '🌙'}</button>
+                    {currentUser ? (<div className="flex items-center gap-2" onClick={handleLogout}><img src={currentUser.avatar} className="w-8 h-8 rounded-full border border-slate-200" alt="profile" /></div>) : (<button onClick={() => setIsLoginOpen(true)} className="text-sm font-bold text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">로그인</button>)}
+                  </div>
+                </div>
+                <Routes>
+                  <Route path="/" element={<Home onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} slides={globalData.slides} notifications={globalData.notifications} brandTagline={globalData.tagline} dailyBriefing={globalData.briefing} />} />
+                  <Route path="/networking" element={<CategoryPage categoryType="networking" items={items.filter(i => i.categoryType === 'networking')} headerInfo={globalData.headers.networking} detailImage={globalData.detailImages.networking} badges={[{ label: "전체", value: "all" }, { label: "모집중", value: "open" }, { label: "종료됨", value: "ended" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/minddate" element={<CategoryPage categoryType="minddate" items={items.filter(i => i.categoryType === 'minddate')} headerInfo={globalData.headers.minddate} detailImage={globalData.detailImages.minddate} badges={[{ label: "전체", value: "all" }, { label: "모집중", value: "open" }, { label: "종료됨", value: "ended" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/crew" element={<CategoryPage categoryType="crew" items={items.filter(i => i.categoryType === 'crew')} headerInfo={globalData.headers.crew} detailImage={globalData.detailImages.crew} badges={[{ label: "크루 모집", value: "recruit" }, { label: "임장 리포트", value: "report" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/lecture" element={<CategoryPage categoryType="lecture" items={items.filter(i => i.categoryType === 'lecture')} headerInfo={globalData.headers.lecture} detailImage={globalData.detailImages.lecture} badges={[{ label: "전체", value: "all" }, { label: "온라인(VOD)", value: "VOD" }, { label: "오프라인", value: "오프라인" }]} onItemClick={handleItemClick} likedIds={likedIds} toggleLike={toggleLike} currentUser={currentUser} showToast={showToast} />} />
+                  <Route path="/mypage" element={<MyPage likedIds={likedIds} appliedIds={appliedIds} unlockedIds={unlockedIds} onItemClick={handleItemClick} toggleLike={toggleLike} currentUser={currentUser} onUpdateUser={handleUpdateUser} showToast={showToast} />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+            <BottomNav />
+            {showScrollTop && (<button onClick={scrollToTop} className="fixed bottom-20 lg:bottom-8 right-4 lg:right-8 z-50 p-3 bg-slate-900 dark:bg-indigo-600 text-white rounded-full shadow-xl hover:bg-slate-700 dark:hover:bg-indigo-500 transition-all hover:scale-110 active:scale-90 animate-in fade-in zoom-in duration-300"> <ArrowUp size={24} /> </button>)}
+            {selectedItem && (
+              <Modal
+                item={selectedItem}
+                onClose={closeItemModal}
+                isLiked={likedIds.includes(selectedItem.id)}
+                toggleLike={() => toggleLike(selectedItem.id)}
+                isApplied={appliedIds.includes(selectedItem.id)}
+                isUnlocked={unlockedIds.includes(selectedItem.id)}
+                onApply={handleApply}
+                onUnlock={handleUnlock}
+                showToast={showToast}
+                currentUser={currentUser}
+                onUpdateUser={handleUpdateUser}
+              />
+            )}
+            <LoginModal
+              isOpen={isLoginOpen}
+              onClose={() => setIsLoginOpen(false)}
+              onSuccess={handleLoginSuccess}
+              showToast={showToast}
+            />
+          </div>
         } />
       </Routes>
     </HashRouter>

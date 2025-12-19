@@ -2,12 +2,30 @@
 export type CategoryType = 'networking' | 'minddate' | 'crew' | 'lecture';
 
 export interface User {
-    id: string; // UUID (Supabase Auth)
-    name: string;
-    email: string;
-    avatar: string;
-    roles: string[]; // 'super_admin', 'crew_manager', 'networking_manager', 'minddate_manager', 'lecture_manager'
-    joinDate: string;
+  id: string; // UUID (Supabase Auth)
+  name: string;
+  email: string;
+  avatar: string;
+  roles: string[]; // 'super_admin', 'crew_manager', 'networking_manager', 'minddate_manager', 'lecture_manager'
+  joinDate: string;
+  phone?: string;
+  birthdate?: string;
+  interests?: string[];
+  isProfileComplete?: boolean;
+}
+
+export type ApplicationStatus = 'applied' | 'paid' | 'checked-in' | 'refund-requested' | 'refund-completed';
+
+export interface Application {
+  id: number;
+  userId: string;
+  itemId: number;
+  status: ApplicationStatus;
+  appliedAt: string;
+  refundAccount?: string;
+  refundReason?: string;
+  userName?: string; // For host view
+  userPhone?: string; // For host view
 }
 
 export interface Review {
@@ -75,7 +93,7 @@ export interface CrewItem extends BaseItem {
   level?: '입문' | '중급' | '실전';
   course?: string[];
   // Report specific
-  gallery?: string[]; 
+  gallery?: string[];
   reportContent?: string; // Detailed report text
   relatedRecruitTitle?: string; // Which recruit this report belongs to
   purchaseCount?: number; // New: To track popularity

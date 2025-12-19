@@ -6,16 +6,31 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // REST API 직접 호출용 헬퍼
-const headers = {
-  'apikey': supabaseAnonKey,
-  'Authorization': `Bearer ${supabaseAnonKey}`,
-  'Content-Type': 'application/json',
-  'Prefer': 'return=representation'
+function getHeaders() {
+  const savedSession = localStorage.getItem('supabase_session')
+  let accessToken = supabaseAnonKey
+  if (savedSession) {
+    try {
+      const session = JSON.parse(savedSession)
+      if (session.access_token) {
+        accessToken = session.access_token
+      }
+    } catch (e) {
+      console.error('Error parsing session for headers', e)
+    }
+  }
+
+  return {
+    'apikey': supabaseAnonKey,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
+  }
 }
 
 export async function supabaseGet<T>(table: string, query: string = ''): Promise<T[]> {
   const url = `${supabaseUrl}/rest/v1/${table}${query ? '?' + query : ''}`
-  const res = await fetch(url, { headers })
+  const res = await fetch(url, { headers: getHeaders() })
   if (!res.ok) {
     throw new Error(`Supabase GET error: ${res.status}`)
   }
@@ -25,7 +40,7 @@ export async function supabaseGet<T>(table: string, query: string = ''): Promise
 export async function supabaseGetSingle<T>(table: string, query: string): Promise<T | null> {
   const url = `${supabaseUrl}/rest/v1/${table}?${query}`
   const res = await fetch(url, {
-    headers: { ...headers, 'Accept': 'application/vnd.pgrst.object+json' }
+    headers: { ...getHeaders(), 'Accept': 'application/vnd.pgrst.object+json' }
   })
   if (res.status === 406) return null // Not found
   if (!res.ok) {
@@ -38,7 +53,7 @@ export async function supabasePost<T>(table: string, data: any): Promise<T> {
   const url = `${supabaseUrl}/rest/v1/${table}`
   const res = await fetch(url, {
     method: 'POST',
-    headers,
+    headers: getHeaders(),
     body: JSON.stringify(data)
   })
   if (!res.ok) {
@@ -52,7 +67,7 @@ export async function supabasePatch(table: string, query: string, data: any): Pr
   const url = `${supabaseUrl}/rest/v1/${table}?${query}`
   const res = await fetch(url, {
     method: 'PATCH',
-    headers,
+    headers: getHeaders(),
     body: JSON.stringify(data)
   })
   return res.ok
@@ -62,7 +77,7 @@ export async function supabaseDelete(table: string, query: string): Promise<bool
   const url = `${supabaseUrl}/rest/v1/${table}?${query}`
   const res = await fetch(url, {
     method: 'DELETE',
-    headers
+    headers: getHeaders()
   })
   return res.ok
 }
