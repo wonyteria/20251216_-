@@ -38,6 +38,7 @@ const MyPage: React.FC<MyPageProps> = ({
     const [showApplicantModal, setShowApplicantModal] = useState(false);
     const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
     const [selectedItemTitle, setSelectedItemTitle] = useState('');
+    const [editingItem, setEditingItem] = useState<AnyItem | null>(null);
 
     useEffect(() => {
         const loadData = async () => {
@@ -71,6 +72,23 @@ const MyPage: React.FC<MyPageProps> = ({
         };
         loadMyItems();
     }, [currentUser]);
+
+    const handleDeleteItem = async (id: number) => {
+        if (!confirm("정말로 이 콘텐츠를 삭제하시겠습니까? 관련 신청 내역은 유지되지만 목록에서 사라집니다.")) return;
+        const success = await database.deleteItem(id);
+        if (success) {
+            showToast("콘텐츠가 삭제되었습니다.", "success");
+            // Refresh
+            const items = await database.getItems();
+            setAllItems(items);
+            if (currentUser?.name) {
+                const myItems = await database.getMyCreatedItems(currentUser.name);
+                setMyCreatedItems(myItems);
+            }
+        } else {
+            showToast("삭제 처리에 실패했습니다.", "error");
+        }
+    };
 
     const handleCancelApplication = async (appId: number, itemId: number) => {
         if (!confirm("정말로 신청을 취소하시겠습니까? 환불 규정에 따라 처리됩니다.")) return;
@@ -316,16 +334,30 @@ const MyPage: React.FC<MyPageProps> = ({
                                                             <td className="p-4 text-center text-sm">{salesCount}</td>
                                                             <td className="p-4 text-right text-sm font-bold dark:text-white">{(parseInt(item.price?.replace(/[^0-9]/g, '') || '0') * salesCount).toLocaleString()}원</td>
                                                             <td className="p-4 text-right">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setSelectedItemId(item.id);
-                                                                        setSelectedItemTitle(item.title);
-                                                                        setShowApplicantModal(true);
-                                                                    }}
-                                                                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
-                                                                >
-                                                                    참여자 관리
-                                                                </button>
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setSelectedItemId(item.id);
+                                                                            setSelectedItemTitle(item.title);
+                                                                            setShowApplicantModal(true);
+                                                                        }}
+                                                                        className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
+                                                                    >
+                                                                        참여자 관리
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setEditingItem(item)}
+                                                                        className="px-3 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold transition-colors"
+                                                                    >
+                                                                        수정
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteItem(item.id)}
+                                                                        className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors"
+                                                                    >
+                                                                        삭제
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );
@@ -345,6 +377,22 @@ const MyPage: React.FC<MyPageProps> = ({
                 <CreateContentModal
                     onClose={() => setIsCreating(false)}
                     currentUser={currentUser}
+                    onSuccess={async () => {
+                        const items = await database.getItems();
+                        setAllItems(items);
+                        if (currentUser?.name) {
+                            const myItems = await database.getMyCreatedItems(currentUser.name);
+                            setMyCreatedItems(myItems);
+                        }
+                    }}
+                    showToast={showToast}
+                />
+            )}
+            {editingItem && (
+                <CreateContentModal
+                    onClose={() => setEditingItem(null)}
+                    currentUser={currentUser}
+                    editItem={editingItem}
                     onSuccess={async () => {
                         const items = await database.getItems();
                         setAllItems(items);

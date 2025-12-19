@@ -11,25 +11,26 @@ interface CreateContentModalProps {
     onSuccess: () => void;
     showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
     defaultCategory?: 'crew' | 'networking' | 'lecture' | 'minddate';
+    editItem?: AnyItem;
 }
 
-const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, currentUser, onSuccess, showToast, defaultCategory }) => {
-    const [category, setCategory] = useState<'crew' | 'networking' | 'lecture' | 'minddate'>(defaultCategory || 'crew');
-    const [title, setTitle] = useState('');
-    const [desc, setDesc] = useState('');
-    const [imgPreview, setImgPreview] = useState<string>('');
-    const [priceRaw, setPriceRaw] = useState('');
-    const [selectedDate, setSelectedDate] = useState('');
-    const [selectedTime, setSelectedTime] = useState('');
-    const [loc, setLoc] = useState('[라임스퀘어] 서울특별시 강남구 역삼로5길 5');
+const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, currentUser, onSuccess, showToast, defaultCategory, editItem }) => {
+    const [category, setCategory] = useState<'crew' | 'networking' | 'lecture' | 'minddate'>(editItem?.categoryType || defaultCategory || 'crew');
+    const [title, setTitle] = useState(editItem?.title || '');
+    const [desc, setDesc] = useState(editItem?.desc || '');
+    const [imgPreview, setImgPreview] = useState<string>(editItem?.img || '');
+    const [priceRaw, setPriceRaw] = useState(editItem?.price?.replace(/[^0-9]/g, '') || '');
+    const [selectedDate, setSelectedDate] = useState(editItem?.date?.split(' ')[0] || '');
+    const [selectedTime, setSelectedTime] = useState(editItem?.date?.split(' ')[1] || '');
+    const [loc, setLoc] = useState(editItem?.loc || '[라임스퀘어] 서울특별시 강남구 역삼로5길 5');
     const [isUploading, setIsUploading] = useState(false);
 
     // Detailed Fields
-    const [maxParticipants, setMaxParticipants] = useState<number>(10);
-    const [curriculum, setCurriculum] = useState<string[]>(['']);
-    const [course, setCourse] = useState<string[]>(['']);
-    const [level, setLevel] = useState<'입문' | '중급' | '실전'>('입문');
-    const [lectureFormat, setLectureFormat] = useState<'VOD' | '오프라인'>('오프라인');
+    const [maxParticipants, setMaxParticipants] = useState<number>((editItem as any)?.maxParticipants || 10);
+    const [curriculum, setCurriculum] = useState<string[]>((editItem as any)?.curriculum || ['']);
+    const [course, setCourse] = useState<string[]>((editItem as any)?.course || ['']);
+    const [level, setLevel] = useState<'입문' | '중급' | '실전'>((editItem as any)?.level || '입문');
+    const [lectureFormat, setLectureFormat] = useState<'VOD' | '오프라인'>((editItem as any)?.format || '오프라인');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,17 +126,28 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
         }
 
         try {
-            const created = await database.createItem(newItem);
-            if (created) {
-                onSuccess();
-                showToast("콘텐츠가 성공적으로 등록되었습니다!", "success");
-                onClose();
+            if (editItem) {
+                const success = await database.updateItem(editItem.id, newItem);
+                if (success) {
+                    onSuccess();
+                    showToast("콘텐츠가 수정되었습니다!", "success");
+                    onClose();
+                } else {
+                    showToast("수정 실패: 데이터 저장 도중 오류가 발생했습니다.", "error");
+                }
             } else {
-                showToast("등록 실패: 데이터 저장 도중 오류가 발생했습니다.", "error");
+                const created = await database.createItem(newItem);
+                if (created) {
+                    onSuccess();
+                    showToast("콘텐츠가 성공적으로 등록되었습니다!", "success");
+                    onClose();
+                } else {
+                    showToast("등록 실패: 데이터 저장 도중 오류가 발생했습니다.", "error");
+                }
             }
         } catch (err: any) {
-            console.error("Create item error:", err);
-            showToast(`등록 실패: ${err.message || '알 수 없는 오류'}`, "error");
+            console.error("Save item error:", err);
+            showToast(`실패: ${err.message || '알 수 없는 오류'}`, "error");
         }
     };
 
@@ -144,7 +156,7 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
             <div className="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold dark:text-white">콘텐츠 만들기</h3>
+                    <h3 className="text-xl font-bold dark:text-white">{editItem ? '콘텐츠 수정하기' : '콘텐츠 만들기'}</h3>
                     <button onClick={onClose}><X size={24} className="text-slate-500" /></button>
                 </div>
 
@@ -288,7 +300,9 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
 
                     </div>
 
-                    <button onClick={handleSubmit} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-indigo-500 transition-colors">등록하기</button>
+                    <button onClick={handleSubmit} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-indigo-500 transition-colors">
+                        {editItem ? '수정 완료' : '등록하기'}
+                    </button>
                 </div>
             </div>
         </div>
