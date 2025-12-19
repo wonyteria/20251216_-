@@ -37,13 +37,25 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
         const file = e.target.files?.[0];
         if (file) {
             setIsUploading(true);
-            const url = await adminUpload(file);
-            if (url) {
-                setImgPreview(url);
-            } else {
-                showToast("이미지 업로드에 실패했습니다.", "error");
+            try {
+                const url = await adminUpload(file);
+                if (url) {
+                    setImgPreview(url);
+                    showToast("이미지가 업로드되었습니다.", "success");
+                }
+            } catch (err: any) {
+                console.error("Upload error:", err);
+                const msg = err.message || "";
+                if (msg.includes("404")) {
+                    showToast("업로드 실패: 'assets' 버킷이 존재하지 않습니다. Supabase에서 버킷을 생성해주세요.", "error");
+                } else if (msg.includes("403")) {
+                    showToast("업로드 실패: 권한이 없습니다. Storage 정책을 확인해주세요.", "error");
+                } else {
+                    showToast(`이미지 업로드 실패: ${err.message || '알 수 없는 오류'}`, "error");
+                }
+            } finally {
+                setIsUploading(false);
             }
-            setIsUploading(false);
         }
     };
 

@@ -18,7 +18,7 @@ export async function uploadImage(bucket: string, file: File): Promise<string | 
         return publicUrl;
     } catch (error) {
         console.error('Image upload failed:', error);
-        return null;
+        throw error; // UI에서 상세 에러를 볼 수 있도록 throw
     }
 }
 

@@ -36,6 +36,24 @@ const Card: React.FC<CardProps> = ({ item, onClick, isLiked, onToggleLike, isApp
         }
     };
 
+    const formatLocation = (loc?: string) => {
+        if (!loc || loc === '지역무관') return loc || '지역무관';
+
+        // Extract building from [...]
+        const buildingMatch = loc.match(/\[(.*?)\]/);
+        const building = buildingMatch ? buildingMatch[1] : '';
+
+        // Extract district (Gu)
+        const guMatch = loc.match(/([가-힣]+구)/);
+        const gu = guMatch ? guMatch[1] : '';
+
+        if (gu && building) return `${gu} ${building}`;
+        if (gu) return gu;
+        if (building) return building;
+
+        return loc.split(' ').slice(0, 2).join(' '); // Fallback to first 2 words
+    };
+
     const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation();
         onToggleLike();
@@ -81,8 +99,8 @@ const Card: React.FC<CardProps> = ({ item, onClick, isLiked, onToggleLike, isApp
                     ) : (
                         <div className="absolute top-3 left-3 flex gap-1">
                             <Badge variant="pink">{item.type === 'dating' ? '소개팅' : '친구'}</Badge>
-                            <span className="bg-black/40 backdrop-blur-sm text-white text-xs px-2 py-0.5 rounded-full flex items-center border border-white/10">
-                                {item.loc}
+                            <span className="bg-black/40 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full flex items-center border border-white/10">
+                                {formatLocation(item.loc)}
                             </span>
                         </div>
                     )}
@@ -183,7 +201,7 @@ const Card: React.FC<CardProps> = ({ item, onClick, isLiked, onToggleLike, isApp
                     <div className="absolute bottom-0 left-0 w-full p-4 text-white">
                         <div className="flex items-center gap-2 mb-1">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-md ${crewItem.level === '실전' ? 'bg-red-500/80' : 'bg-emerald-500/80'}`}>{crewItem.level}</span>
-                            <span className="text-xs font-medium opacity-90">{item.loc}</span>
+                            <span className="text-[10px] font-medium opacity-90">{formatLocation(item.loc)}</span>
                         </div>
                         <h3 className="font-bold text-lg leading-tight drop-shadow-md">{item.title}</h3>
                     </div>
@@ -277,7 +295,7 @@ const Card: React.FC<CardProps> = ({ item, onClick, isLiked, onToggleLike, isApp
 
                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-3">
                     <MapPin size={14} />
-                    <span className="truncate">{item.loc || '지역무관'}</span>
+                    <span className="truncate">{formatLocation(item.loc) || '지역무관'}</span>
                     <span className="mx-1">•</span>
                     <span>{item.date || '상시'}</span>
                 </div>
