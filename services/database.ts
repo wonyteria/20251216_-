@@ -570,13 +570,45 @@ export async function createReview(review: Omit<Review, 'id' | 'createdAt' | 'up
       user: review.user,
       text: review.text,
       rating: review.rating,
-      date: new Date().toLocaleDateString(),
+      date: new Date().toLocaleDateString('ko-KR'),
       avatar: review.avatar
     })
     return true
   } catch (error) {
     console.error('Error creating review:', error)
     return false
+  }
+}
+
+export async function seedDummyReviews(): Promise<boolean> {
+  try {
+    const items = await getItems();
+    if (items.length === 0) return false;
+
+    const dummyReviews = [
+      { user: "김민재", text: "정말 알찬 시간이었습니다. 특히 실전 임장 코스가 구체적이어서 좋았어요!", rating: 5 },
+      { user: "이지은", text: "부동산 초보자도 쉽게 이해할 수 있도록 잘 설명해주셔서 감사합니다.", rating: 4 },
+      { user: "박준영", text: "분위기도 너무 좋고, 같은 고민을 가진 분들과 네트워킹할 수 있어 행복했습니다.", rating: 5 },
+      { user: "최현아", text: "기대했던 부분보다 더 많은 인사이트를 얻어갑니다. 강추합니다!", rating: 5 },
+      { user: "정호석", text: "조금 더 심화된 내용도 다뤄주시면 좋을 것 같아요. 전반적으로 만족합니다.", rating: 4 },
+    ];
+
+    for (let i = 0; i < dummyReviews.length; i++) {
+      const itemIdx = i % items.length;
+      await supabasePost('reviews', {
+        item_id: items[itemIdx].id,
+        user_id: 'dummy-user-id-' + i,
+        user: dummyReviews[i].user,
+        text: dummyReviews[i].text,
+        rating: dummyReviews[i].rating,
+        date: new Date(Date.now() - (i * 86400000)).toLocaleDateString('ko-KR'),
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${dummyReviews[i].user}`
+      });
+    }
+    return true;
+  } catch (error) {
+    console.error('Seed error:', error);
+    return false;
   }
 }
 
@@ -609,6 +641,37 @@ export async function deleteReview(id: number): Promise<boolean> {
   } catch (error) {
     console.error('Error deleting review:', error)
     return false
+  }
+}
+
+export async function simulateReviewPrompt(userId: string): Promise<boolean> {
+  try {
+    const items = await getItems();
+    // Find any item that is not ended yet
+    const targetItem = items.find(i => i.status !== 'ended');
+    if (!targetItem) return false;
+
+    // 1. Participate (if not already)
+    const existing = await supabaseGet<any>('applications', `user_id=eq.${userId}&item_id=eq.${targetItem.id}`);
+    if (existing.length === 0) {
+      await supabasePost('applications', {
+        user_id: userId,
+        item_id: targetItem.id,
+        status: 'paid',
+        user_name: '테스터',
+        user_phone: '010-0000-0000'
+      });
+    } else {
+      await supabasePatch('applications', `user_id=eq.${userId}&item_id=eq.${targetItem.id}`, { status: 'paid' });
+    }
+
+    // 2. End the item
+    await supabasePatch('items', `id=eq.${targetItem.id}`, { status: 'ended' });
+
+    return true;
+  } catch (error) {
+    console.error('Simulation error:', error);
+    return false;
   }
 }
 

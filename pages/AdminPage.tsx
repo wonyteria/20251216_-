@@ -429,8 +429,24 @@ const AdminPage = ({ showToast }: { showToast: (msg: string, type?: 'success' | 
         {activeTab === 'reviews' && (
           <div className="bg-white rounded-3xl border shadow-sm p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black">리뷰 관리</h3>
-              <p className="text-xs text-slate-400 font-medium tracking-tight">멤버들이 남긴 후기를 관리합니다. (24시간 무관 관리자 수정 가능)</p>
+              <div>
+                <h3 className="text-xl font-black">리뷰 관리</h3>
+                <p className="text-xs text-slate-400 font-medium tracking-tight">멤버들이 남긴 후기를 관리합니다. (24시간 무관 관리자 수정 가능)</p>
+              </div>
+              <button
+                onClick={async () => {
+                  const success = await database.seedDummyReviews();
+                  if (success) {
+                    showToast("더미 리뷰 데이터가 생성되었습니다.", "success");
+                    loadData();
+                  } else {
+                    showToast("데이터 생성 실패", "error");
+                  }
+                }}
+                className="px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold text-xs"
+              >
+                더미 리뷰 생성
+              </button>
             </div>
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b">

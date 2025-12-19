@@ -404,7 +404,52 @@ const MyPage: React.FC<MyPageProps> = ({
                     showToast={showToast}
                 />
             )}
-            {isApplying && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"><div className="bg-white p-8 rounded-2xl text-center"><h3 className="font-bold mb-4 text-xl">파트너 신청</h3><p className="text-slate-500 mb-6">검증된 호스트가 되어 콘텐츠를 발행해보세요.</p><button onClick={() => { onUpdateUser({ ...currentUser!, roles: [...currentUser!.roles, 'crew_manager'] }); setIsApplying(false); showToast("파트너 승인이 완료되었습니다!", "success"); }} className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-500 transition-colors">승인 시뮬레이션 (즉시 승인)</button></div></div>}
+            {isApplying && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] text-center max-w-sm w-full animate-in zoom-in duration-300">
+                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <Zap size={32} />
+                        </div>
+                        <h3 className="font-black text-xl mb-4 dark:text-white">시뮬레이션 센터</h3>
+                        <p className="text-slate-500 text-sm mb-8 leading-relaxed">테스트를 위해 기능을 즉시 활성화합니다.</p>
+
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => {
+                                    onUpdateUser({ ...currentUser!, roles: [...currentUser!.roles, 'crew_manager'] });
+                                    setIsApplying(false);
+                                    showToast("파트너 승인이 완료되었습니다!", "success");
+                                }}
+                                className="w-full bg-indigo-600 text-white px-8 py-3.5 rounded-xl font-bold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+                            >
+                                파트너 즉시 승인
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    if (!currentUser) return;
+                                    const success = await database.simulateReviewPrompt(currentUser.id);
+                                    if (success) {
+                                        setIsApplying(false);
+                                        showToast("참여 콘텐츠가 종료되었습니다! 새로고침 시 리뷰 팝업이 뜹니다.", "success");
+                                        // Force refresh data
+                                        window.location.reload();
+                                    } else {
+                                        showToast("시뮬레이션 실패: 종료할 수 있는 콘텐츠가 없습니다.", "error");
+                                    }
+                                }}
+                                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-8 py-3.5 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                            >
+                                콘텐츠 종료 시뮬레이션
+                            </button>
+
+                            <button onClick={() => setIsApplying(false)} className="w-full py-3 text-slate-400 font-bold hover:text-slate-600">
+                                닫기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modals */}
             {currentUser && (
