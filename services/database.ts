@@ -1,5 +1,5 @@
 import { supabaseGet, supabaseGetSingle, supabasePost, supabasePatch, supabaseDelete } from './supabase'
-import type { AnyItem, User, Slide, BriefingItem, CategoryHeaderInfo, Review, Application, ApplicationStatus } from '../types'
+import type { AnyItem, User, Slide, BriefingItem, CategoryHeaderInfo, Review, Application, ApplicationStatus, NotificationItem } from '../types'
 
 // --- Items ---
 export async function getItems(): Promise<AnyItem[]> {
@@ -241,11 +241,14 @@ export async function unlockReport(userId: string, itemId: number): Promise<bool
 // --- Slides ---
 export async function getSlides(): Promise<Slide[]> {
   try {
-    const data = await supabaseGet<any>('slides', 'is_active=eq.true&order=sort_order.asc')
+    const data = await supabaseGet<any>('slides', 'order=sort_order.asc')
     return data.map(d => ({
+      id: d.id,
       title: d.title,
       desc: d.desc,
-      img: d.img
+      img: d.img,
+      sortOrder: d.sort_order,
+      isActive: d.is_active
     }))
   } catch (error) {
     console.error('Error fetching slides:', error)
@@ -253,14 +256,98 @@ export async function getSlides(): Promise<Slide[]> {
   }
 }
 
-// --- Notifications ---
-export async function getNotifications(): Promise<string[]> {
+export async function createSlide(slide: Omit<Slide, 'id'>): Promise<boolean> {
   try {
-    const data = await supabaseGet<any>('notifications', 'is_active=eq.true&order=sort_order.asc&limit=10&select=message')
-    return data.map(d => d.message)
+    await supabasePost('slides', {
+      title: slide.title,
+      desc: slide.desc,
+      img: slide.img,
+      sort_order: slide.sortOrder,
+      is_active: slide.isActive
+    })
+    return true
+  } catch (error) {
+    console.error('Error creating slide:', error)
+    return false
+  }
+}
+
+export async function updateSlide(id: number, updates: Partial<Slide>): Promise<boolean> {
+  try {
+    const data: any = {}
+    if (updates.title !== undefined) data.title = updates.title
+    if (updates.desc !== undefined) data.desc = updates.desc
+    if (updates.img !== undefined) data.img = updates.img
+    if (updates.sortOrder !== undefined) data.sort_order = updates.sortOrder
+    if (updates.isActive !== undefined) data.is_active = updates.isActive
+    return await supabasePatch('slides', `id=eq.${id}`, data)
+  } catch (error) {
+    console.error('Error updating slide:', error)
+    return false
+  }
+}
+
+export async function deleteSlide(id: number): Promise<boolean> {
+  try {
+    return await supabaseDelete('slides', `id=eq.${id}`)
+  } catch (error) {
+    console.error('Error deleting slide:', error)
+    return false
+  }
+}
+
+// --- Notifications ---
+export async function getNotifications(): Promise<NotificationItem[]> {
+  try {
+    const data = await supabaseGet<any>('notifications', 'order=sort_order.asc')
+    return data.map(d => ({
+      id: d.id,
+      message: d.message,
+      linkUrl: d.link_url,
+      isActive: d.is_active,
+      sortOrder: d.sort_order
+    }))
   } catch (error) {
     console.error('Error fetching notifications:', error)
     return []
+  }
+}
+
+export async function createNotification(noti: Omit<NotificationItem, 'id'>): Promise<boolean> {
+  try {
+    await supabasePost('notifications', {
+      message: noti.message,
+      link_url: noti.linkUrl,
+      is_active: noti.isActive,
+      sort_order: noti.sortOrder
+    })
+    return true
+  } catch (error) {
+    console.error('Error creating notification:', error)
+    return false
+  }
+}
+
+export async function updateNotification(id: number, updates: Partial<NotificationItem>): Promise<boolean> {
+  try {
+    const data: any = {}
+    if (updates.message !== undefined) data.message = updates.message
+    if (updates.linkUrl !== undefined) data.link_url = updates.linkUrl
+    if (updates.isActive !== undefined) data.is_active = updates.isActive
+    if (updates.sortOrder !== undefined) data.sort_order = updates.sortOrder
+    return await supabasePatch('notifications', `id=eq.${id}`, data)
+  } catch (error) {
+    console.error('Error updating notification:', error)
+    return false
+  }
+}
+
+export async function deleteNotification(id: number): Promise<boolean> {
+  try {
+    return await supabaseDelete('notifications', `id=eq.${id}`)
+  } catch (error) {
+    console.error('Error deleting notification:', error)
+    return false
   }
 }
 
@@ -297,6 +384,22 @@ export async function getCategoryHeaders(): Promise<Record<string, CategoryHeade
   }
 }
 
+export async function updateCategoryHeader(category: string, title: string, description: string): Promise<boolean> {
+  try {
+    // Check if exists
+    const existing = await supabaseGet<any>('category_headers', `category=eq.${category}`)
+    if (existing.length > 0) {
+      return await supabasePatch('category_headers', `category=eq.${category}`, { title, description })
+    } else {
+      await supabasePost('category_headers', { category, title, description })
+      return true
+    }
+  } catch (error) {
+    console.error('Error updating category header:', error)
+    return false
+  }
+}
+
 // --- Detail Images ---
 export async function getDetailImages(): Promise<Record<string, string>> {
   try {
@@ -312,6 +415,21 @@ export async function getDetailImages(): Promise<Record<string, string>> {
   }
 }
 
+export async function updateCategoryDetailImage(category: string, imageUrl: string): Promise<boolean> {
+  try {
+    const existing = await supabaseGet<any>('category_detail_images', `category=eq.${category}`)
+    if (existing.length > 0) {
+      return await supabasePatch('category_detail_images', `category=eq.${category}`, { image_url: imageUrl })
+    } else {
+      await supabasePost('category_detail_images', { category, image_url: imageUrl })
+      return true
+    }
+  } catch (error) {
+    console.error('Error updating detail image:', error)
+    return false
+  }
+}
+
 // --- Settings ---
 export async function getSetting(key: string): Promise<string | null> {
   try {
@@ -320,6 +438,21 @@ export async function getSetting(key: string): Promise<string | null> {
   } catch (error) {
     console.error('Error fetching setting:', error)
     return null
+  }
+}
+
+export async function setSetting(key: string, value: string): Promise<boolean> {
+  try {
+    const existing = await supabaseGet<any>('settings', `key=eq.${key}`)
+    if (existing.length > 0) {
+      return await supabasePatch('settings', `key=eq.${key}`, { value })
+    } else {
+      await supabasePost('settings', { key, value })
+      return true
+    }
+  } catch (error) {
+    console.error('Error setting setting:', error)
+    return false
   }
 }
 
@@ -547,11 +680,35 @@ export async function getUsers(): Promise<User[]> {
       email: d.email,
       avatar: d.avatar || '',
       roles: d.roles || [],
-      joinDate: d.join_date
-    })) as unknown as User[]
+      joinDate: d.join_date,
+      phone: d.phone,
+      birthdate: d.birthdate,
+      interests: d.interests,
+      isProfileComplete: d.is_profile_complete
+    }))
   } catch (error) {
     console.error('Error fetching users:', error)
     return []
+  }
+}
+
+// 유저 권한 수정
+export async function updateUserRoles(userId: string, roles: string[]): Promise<boolean> {
+  try {
+    return await supabasePatch('users', `id=eq.${userId}`, { roles })
+  } catch (error) {
+    console.error('Error updating user roles:', error)
+    return false
+  }
+}
+
+// 유저 삭제 (탈퇴)
+export async function deleteUser(userId: string): Promise<boolean> {
+  try {
+    return await supabaseDelete('users', `id=eq.${userId}`)
+  } catch (error) {
+    console.error('Error deleting user:', error)
+    return false
   }
 }
 

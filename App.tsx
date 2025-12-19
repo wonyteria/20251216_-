@@ -58,8 +58,17 @@ const App: React.FC = () => {
         database.loadGlobalData()
       ]);
 
+      // Filter for active content
+      const filteredGlobalData = {
+        ...globalDataResult,
+        slides: globalDataResult.slides.filter(s => s.isActive),
+        notifications: globalDataResult.notifications
+          .filter(n => n.isActive)
+          .map(n => n.message)
+      };
+
       setItems(itemsData);
-      setGlobalData(globalDataResult);
+      setGlobalData(filteredGlobalData);
     } catch (error) {
       console.error('Error loading data:', error);
     }

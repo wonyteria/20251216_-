@@ -81,3 +81,26 @@ export async function supabaseDelete(table: string, query: string): Promise<bool
   })
   return res.ok
 }
+
+export async function supabaseUpload(bucket: string, path: string, file: File): Promise<string> {
+  const url = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`
+  const headers = getHeaders()
+  delete (headers as any)['Content-Type'] // Let the browser set the boundary for multipart or use the file's content type
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': file.type
+    },
+    body: file
+  })
+
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(`Upload error: ${err.message || res.statusText}`)
+  }
+
+  // Return the public URL
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`
+}

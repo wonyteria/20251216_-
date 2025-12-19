@@ -110,9 +110,20 @@ export interface LectureItem extends BaseItem {
 export type AnyItem = NetworkingItem | MatchingItem | CrewItem | LectureItem;
 
 export interface Slide {
+  id: number;
   title: string;
   desc: string;
   img: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface NotificationItem {
+  id: number;
+  message: string;
+  linkUrl?: string;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 export interface BadgeConfig {

@@ -1,8 +1,9 @@
 
 import React, { useState, useRef } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import { User, AnyItem } from '../types';
 import * as database from '../services/database';
+import { adminUpload } from '../services/storage';
 
 interface CreateContentModalProps {
     onClose: () => void;
@@ -21,6 +22,7 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedTime, setSelectedTime] = useState('');
     const [loc, setLoc] = useState('[라임스퀘어] 서울특별시 강남구 역삼로5길 5');
+    const [isUploading, setIsUploading] = useState(false);
 
     // Detailed Fields
     const [maxParticipants, setMaxParticipants] = useState<number>(10);
@@ -31,12 +33,17 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setImgPreview(reader.result as string);
-            reader.readAsDataURL(file);
+            setIsUploading(true);
+            const url = await adminUpload(file);
+            if (url) {
+                setImgPreview(url);
+            } else {
+                showToast("이미지 업로드에 실패했습니다.", "error");
+            }
+            setIsUploading(false);
         }
     };
 
@@ -134,10 +141,21 @@ const CreateContentModal: React.FC<CreateContentModalProps> = ({ onClose, curren
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-slate-500 mb-1">이미지</label>
-                            <div className="border-2 border-dashed p-4 text-center cursor-pointer dark:border-slate-700 rounded-xl" onClick={() => fileInputRef.current?.click()}>
-                                {imgPreview ? <img src={imgPreview} className="h-40 mx-auto object-cover rounded" /> : <span className="text-slate-500">클릭하여 이미지 업로드</span>}
-                                <input ref={fileInputRef} type="file" className="hidden" onChange={handleImageUpload} />
+                            <div className="border-2 border-dashed p-4 text-center cursor-pointer dark:border-slate-700 rounded-xl min-h-[160px] flex items-center justify-center relative overflow-hidden group" onClick={() => fileInputRef.current?.click()}>
+                                {imgPreview ? (
+                                    <img src={imgPreview} className="h-40 w-full object-cover rounded" />
+                                ) : (
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Plus className="text-slate-400" />
+                                        <span className="text-sm font-bold text-slate-400">클릭하여 이미지 업로드</span>
+                                    </div>
+                                )}
+                                {isUploading && (
+                                    <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 flex items-center justify-center">
+                                        <Loader2 className="animate-spin text-indigo-600" />
+                                    </div>
+                                )}
+                                <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                             </div>
                         </div>
 
